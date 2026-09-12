@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum TokenType {
     EOF,
     Error,
@@ -29,7 +29,20 @@ impl Display for TokenType {
     }
 }
 
+#[derive(Debug)]
 pub struct Token<'a> {
     pub _type: TokenType,
     pub lexeme: &'a str,
+}
+
+impl<'a> Token<'a> {
+    pub fn new(_type: TokenType, lexeme: &'a str) -> Self {
+        return Token { _type, lexeme };
+    }
+}
+
+impl PartialEq for Token<'_> {
+    fn eq(&self, other: &Token) -> bool {
+        return self._type == other._type && self.lexeme == other.lexeme;
+    }
 }
