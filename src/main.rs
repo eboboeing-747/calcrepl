@@ -1,16 +1,19 @@
-use token::{TokenType, Token};
-use tokenizer::Tokenizer;
+use parser::Parser;
+use std::io::{Write, stdin};
 
 mod token;
 mod tokenizer;
+mod parser;
 
 fn main() {
-    let string = String::from("1 жопа + 1");
-    let mut tokenizer = Tokenizer::new(&string);
-
     loop {
-        let token: Token = tokenizer.scan_token();
-        println!("{} {}", token._type, token.lexeme);
-        if token._type == TokenType::EOF { break; }
+        let mut line = String::new();
+        print!("> ");
+        let _ = std::io::stdout().flush();
+        stdin().read_line(&mut line).expect("failed to read line");
+        let line: &str = line.trim();
+        if line == "exit" { break; }
+        let mut parser = Parser::new(&line);
+        println!("{}", parser.expr())
     }
 }

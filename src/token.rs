@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum TokenType {
-    EOF,
+    Eof,
     Error,
     LeftParen,
     Minus,
@@ -16,7 +16,7 @@ pub enum TokenType {
 impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EOF => write!(f, "EOF"),
+            Self::Eof => write!(f, "EOF"),
             Self::Error => write!(f, "Error"),
             Self::LeftParen => write!(f, "LeftParen"),
             Self::Minus => write!(f, "Minus"),
@@ -29,7 +29,7 @@ impl Display for TokenType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Token<'a> {
     pub _type: TokenType,
     pub lexeme: &'a str,
@@ -38,6 +38,10 @@ pub struct Token<'a> {
 impl<'a> Token<'a> {
     pub fn new(_type: TokenType, lexeme: &'a str) -> Self {
         return Token { _type, lexeme };
+    }
+
+    pub fn new_eof() -> Self {
+        return Token { _type: TokenType::Eof, lexeme: "" };
     }
 }
 

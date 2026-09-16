@@ -78,7 +78,7 @@ impl<'a> Tokenizer<'a> {
         self.start = self.current;
         let c = match self.advance() {
             Some(c) => c,
-            None => return self.make_token(TokenType::EOF),
+            None => return self.make_token(TokenType::Eof),
         };
 
         if c.is_digit(10) {
@@ -108,7 +108,7 @@ mod tests {
             let token = tokenizer.scan_token();
             let _type = token._type;
             res.push(token);
-            if _type == TokenType::EOF { break; }
+            if _type == TokenType::Eof { break; }
         }
         return res;
     }
@@ -116,7 +116,7 @@ mod tests {
     #[test]
     fn empty_string() {
         assert_eq!(
-            vec![Token::new(TokenType::EOF, "")],
+            vec![Token::new(TokenType::Eof, "")],
             vectorize(""),
         );
     }
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn single_whitespace_string() {
         assert_eq!(
-            vec![Token::new(TokenType::EOF, "")],
+            vec![Token::new(TokenType::Eof, "")],
             vectorize(" "),
         );
     }
@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn long_whitespace_string() {
         assert_eq!(
-            vec![Token::new(TokenType::EOF, "")],
+            vec![Token::new(TokenType::Eof, "")],
             vectorize("         "),
         )
     }
@@ -142,7 +142,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::new(TokenType::Number, "1"),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("1")
         );
@@ -157,7 +157,7 @@ mod tests {
                 Token::new(TokenType::Plus, "+"),
                 Token::new(TokenType::Number, "1"),
                 Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("(1+1)"),
         );
@@ -172,7 +172,7 @@ mod tests {
                 Token::new(TokenType::Plus, "+"),
                 Token::new(TokenType::Number, "1"),
                 Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("( 1 + 1 )"),
         );
@@ -187,7 +187,7 @@ mod tests {
                 Token::new(TokenType::Plus, "+"),
                 Token::new(TokenType::Number, "1"),
                 Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("(    1     +1    )"),
         );
@@ -198,7 +198,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::new(TokenType::Number, "123456"),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("123456"),
         );
@@ -217,7 +217,7 @@ mod tests {
                 Token::new(TokenType::Minus, "-"),
                 Token::new(TokenType::Number, "12"),
                 Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("123456 + 1  / (984 - 12)"),
         );
@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::new(TokenType::Number, "1.1"),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("1.1"),
         );
@@ -239,7 +239,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::new(TokenType::Number, "1245.123142"),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("1245.123142"),
         );
@@ -255,7 +255,7 @@ mod tests {
                 Token::new(TokenType::Number, "23423"),
                 Token::new(TokenType::RightParen, ")"),
                 Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("((.23423))"),
         );
@@ -266,7 +266,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::new(TokenType::Error, "0."),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("0."),
         );
@@ -277,7 +277,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::new(TokenType::Error, "9888."),
-                Token::new(TokenType::EOF, ""),
+                Token::new(TokenType::Eof, ""),
             ],
             vectorize("9888."),
         );
