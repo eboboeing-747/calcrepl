@@ -14,6 +14,6 @@ fn main() {
         let line: &str = line.trim();
         if line == "exit" { break; }
         let mut parser = Parser::new(&line);
-        println!("{}", parser.expr())
+        println!("{}", parser.parse())
     }
 }

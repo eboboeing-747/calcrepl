@@ -3,6 +3,12 @@ use std::fmt;
 use crate::tokenizer::Tokenizer;
 use crate::token::{ Token, TokenType };
 
+#[derive(Clone, Copy)]
+enum BindingPower {
+    Term = 1,
+    Factor = 3,
+}
+
 pub enum S<'a> {
     Atom(Token<'a>),
     Cons(Token<'a>, Vec<S<'a>>),
@@ -50,7 +56,7 @@ impl<'a> Parser<'a> {
         return self.current;
     }
 
-    pub fn expr(&mut self) -> S<'a> {
+    pub fn parse(&mut self) -> S<'a> {
         return self.expr_bp(0);
     }
 
@@ -83,71 +89,78 @@ impl<'a> Parser<'a> {
     }
 
     fn infix_binding_power(op: TokenType) -> (u8, u8) {
-        return match op {
-            TokenType::Plus => (1, 2),
-            TokenType::Minus => (1, 2),
-            TokenType::Star => (3, 4),
-            TokenType::Slash => (3, 4),
-            _ => panic!("unknown operator"),
+        let bp = match op {
+            TokenType::Plus => BindingPower::Term,
+            TokenType::Minus => BindingPower::Term,
+            TokenType::Star => BindingPower::Factor,
+            TokenType::Slash => BindingPower::Factor,
+            t => panic!("unknown operator '{}'", t),
         };
+
+        return (bp as u8, bp as u8 + 1);
     }
 }
 
-#[test]
-fn walk() {
-    let mut parser = Parser::new("1 + 2 * 3");
-    assert_eq!(parser.peek(), Token::new(TokenType::Number, "1"));
-    assert_eq!(parser.next(), Token::new(TokenType::Number, "1"));
-    assert_eq!(parser.peek(), Token::new(TokenType::Plus, "+"));
-    assert_eq!(parser.next(), Token::new(TokenType::Plus, "+"));
-    assert_eq!(parser.peek(), Token::new(TokenType::Number, "2"));
-    assert_eq!(parser.next(), Token::new(TokenType::Number, "2"));
-    assert_eq!(parser.peek(), Token::new(TokenType::Star, "*"));
-    assert_eq!(parser.next(), Token::new(TokenType::Star, "*"));
-    assert_eq!(parser.peek(), Token::new(TokenType::Number, "3"));
-    assert_eq!(parser.next(), Token::new(TokenType::Number, "3"));
-    assert_eq!(parser.peek(), Token::new(TokenType::Eof, ""));
-    assert_eq!(parser.next(), Token::new(TokenType::Eof, ""));
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn single_number() {
-    let mut parser = Parser::new("1");
-    let s = parser.expr();
-    assert_eq!(s.to_string(), "1");
-}
+    #[test]
+    fn walk() {
+        let mut parser = Parser::new("1 + 2 * 3");
+        assert_eq!(parser.peek(), Token::new(TokenType::Number, "1"));
+        assert_eq!(parser.next(), Token::new(TokenType::Number, "1"));
+        assert_eq!(parser.peek(), Token::new(TokenType::Plus, "+"));
+        assert_eq!(parser.next(), Token::new(TokenType::Plus, "+"));
+        assert_eq!(parser.peek(), Token::new(TokenType::Number, "2"));
+        assert_eq!(parser.next(), Token::new(TokenType::Number, "2"));
+        assert_eq!(parser.peek(), Token::new(TokenType::Star, "*"));
+        assert_eq!(parser.next(), Token::new(TokenType::Star, "*"));
+        assert_eq!(parser.peek(), Token::new(TokenType::Number, "3"));
+        assert_eq!(parser.next(), Token::new(TokenType::Number, "3"));
+        assert_eq!(parser.peek(), Token::new(TokenType::Eof, ""));
+        assert_eq!(parser.next(), Token::new(TokenType::Eof, ""));
+    }
 
-#[test]
-fn simple_expression() {
-    let mut parser = Parser::new("1 + 1");
-    let s = parser.expr();
-    assert_eq!(s.to_string(), "(+ 1 1)");
-}
+    #[test]
+    fn single_number() {
+        let mut parser = Parser::new("1");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "1");
+    }
 
-#[test]
-fn expression_bp_1() {
-    let mut parser = Parser::new("1 + 2 * 3");
-    let s = parser.expr();
-    assert_eq!(s.to_string(), "(+ 1 (* 2 3))")
-}
+    #[test]
+    fn simple_expression() {
+        let mut parser = Parser::new("1 + 1");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(+ 1 1)");
+    }
 
-#[test]
-fn expression_bp_2() {
-    let mut parser = Parser::new("1 * 2 + 3");
-    let s = parser.expr();
-    assert_eq!(s.to_string(), "(+ (* 1 2) 3)")
-}
+    #[test]
+    fn expression_bp_1() {
+        let mut parser = Parser::new("1 + 2 * 3");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(+ 1 (* 2 3))")
+    }
 
-#[test]
-fn complicated_expression_1() {
-    let mut parser = Parser::new("1 + 2 * 3 * 4 + 5");
-    let s = parser.expr();
-    assert_eq!(s.to_string(), "(+ (+ 1 (* (* 2 3) 4)) 5)");
-}
+    #[test]
+    fn expression_bp_2() {
+        let mut parser = Parser::new("1 * 2 + 3");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(+ (* 1 2) 3)")
+    }
 
-#[test]
-fn complicated_expression_2() {
-    let mut parser = Parser::new("1 * 2 * 3 + 4 * 5");
-    let s = parser.expr();
-    assert_eq!(s.to_string(), "(+ (* (* 1 2) 3) (* 4 5))");
+    #[test]
+    fn complicated_expression_1() {
+        let mut parser = Parser::new("1 + 2 * 3 * 4 + 5");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(+ (+ 1 (* (* 2 3) 4)) 5)");
+    }
+
+    #[test]
+    fn complicated_expression_2() {
+        let mut parser = Parser::new("1 * 2 * 3 + 4 * 5");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(+ (* (* 1 2) 3) (* 4 5))");
+    }
 }
