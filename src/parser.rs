@@ -1,7 +1,7 @@
 use core::panic;
 use std::fmt;
 use crate::tokenizer::Tokenizer;
-use crate::token::{ Token, TokenType };
+use crate::token::Token;
 
 #[derive(Clone, Copy)]
 enum BindingPower {
@@ -17,9 +17,9 @@ pub enum S<'a> {
 impl fmt::Display for S<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            S::Atom(i) => write!(f, "{}", i.lexeme),
+            S::Atom(token) => write!(f, "{}", token),
             S::Cons(head, rest) => {
-                write!(f, "({}", head.lexeme)?;
+                write!(f, "({}", head)?;
                 for s in rest {
                     write!(f, " {}", s)?
                 }
@@ -42,7 +42,7 @@ impl<'a> Parser<'a> {
         return Parser {
             tokenizer: tokenizer,
             current: token,
-            previous: Token::new_eof(),
+            previous: Token::Eof,
         };
     }
 
@@ -60,40 +60,40 @@ impl<'a> Parser<'a> {
         return self.expr_bp(0);
     }
 
-    fn expr_bp(&mut self, min_bp: u8) -> S<'a> {
+    fn expr_bp(& mut self, min_bp: u8) -> S<'a> {
         let token = self.next();
-        let mut lhs = match token._type {
-            TokenType::Number => S::Atom(token),
-            t => panic!("expected number, got {} instead", t),
+        let mut lhs = match token {
+            Token::Number(_lexeme) => S::Atom(token),
+            t => panic!("expected Token::Number, got {} instead", t),
         };
 
         loop {
-            let op_token = self.peek();
-            let op = match op_token._type {
-                TokenType::Eof => break,
-                TokenType::Number =>
-                    panic!("expected operator, got {} instead", token._type),
-                TokenType::Error =>
-                    panic!("expected operator, got {} instead", token._type),
+            let op = match self.peek() {
+                Token::Eof => break,
+                Token::Number(_lexeme) =>
+                    panic!("expected Operator, got {} instead", token),
+                Token::Error(_lexeme) =>
+                    panic!("expected Operator, got {} instead", token),
                 t => t,
             };
+
             let (l_bp, r_bp) = Self::infix_binding_power(op);
             if l_bp < min_bp { break; }
             self.next();
             let rhs = self.expr_bp(r_bp);
 
-            lhs = S::Cons(op_token, vec![lhs, rhs]);
+            lhs = S::Cons(op, vec![lhs, rhs]);
         }
 
         return lhs;
     }
 
-    fn infix_binding_power(op: TokenType) -> (u8, u8) {
+    fn infix_binding_power(op: Token) -> (u8, u8) {
         let bp = match op {
-            TokenType::Plus => BindingPower::Term,
-            TokenType::Minus => BindingPower::Term,
-            TokenType::Star => BindingPower::Factor,
-            TokenType::Slash => BindingPower::Factor,
+            Token::Plus(_lexeme) => BindingPower::Term,
+            Token::Minus(_lexeme) => BindingPower::Term,
+            Token::Star(_lexeme) => BindingPower::Factor,
+            Token::Slash(_lexeme) => BindingPower::Factor,
             t => panic!("unknown operator '{}'", t),
         };
 
@@ -108,18 +108,18 @@ mod tests {
     #[test]
     fn walk() {
         let mut parser = Parser::new("1 + 2 * 3");
-        assert_eq!(parser.peek(), Token::new(TokenType::Number, "1"));
-        assert_eq!(parser.next(), Token::new(TokenType::Number, "1"));
-        assert_eq!(parser.peek(), Token::new(TokenType::Plus, "+"));
-        assert_eq!(parser.next(), Token::new(TokenType::Plus, "+"));
-        assert_eq!(parser.peek(), Token::new(TokenType::Number, "2"));
-        assert_eq!(parser.next(), Token::new(TokenType::Number, "2"));
-        assert_eq!(parser.peek(), Token::new(TokenType::Star, "*"));
-        assert_eq!(parser.next(), Token::new(TokenType::Star, "*"));
-        assert_eq!(parser.peek(), Token::new(TokenType::Number, "3"));
-        assert_eq!(parser.next(), Token::new(TokenType::Number, "3"));
-        assert_eq!(parser.peek(), Token::new(TokenType::Eof, ""));
-        assert_eq!(parser.next(), Token::new(TokenType::Eof, ""));
+        assert_eq!(parser.peek(), Token::Number("1"));
+        assert_eq!(parser.next(), Token::Number("1"));
+        assert_eq!(parser.peek(), Token::Plus("+"));
+        assert_eq!(parser.next(), Token::Plus("+"));
+        assert_eq!(parser.peek(), Token::Number("2"));
+        assert_eq!(parser.next(), Token::Number("2"));
+        assert_eq!(parser.peek(), Token::Star("*"));
+        assert_eq!(parser.next(), Token::Star("*"));
+        assert_eq!(parser.peek(), Token::Number("3"));
+        assert_eq!(parser.next(), Token::Number("3"));
+        assert_eq!(parser.peek(), Token::Eof);
+        assert_eq!(parser.next(), Token::Eof);
     }
 
     #[test]

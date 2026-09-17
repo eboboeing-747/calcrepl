@@ -1,6 +1,6 @@
 use std::str::CharIndices;
 use std::iter::Peekable;
-use crate::token::{TokenType, Token};
+use crate::token::Token;
 
 pub struct Tokenizer<'a> {
     start: usize,
@@ -52,47 +52,44 @@ impl<'a> Tokenizer<'a> {
 
     fn number(&mut self) -> Token<'a> {
         while self.peek().unwrap_or('\0').is_digit(10) { self.advance(); }
+
         if self.peek().unwrap_or('\0') == '.' {
             self.advance();
         } else {
-            return self.make_token(TokenType::Number);
+            return Token::Number(self.lexeme());
         }
+
         if !self.peek().unwrap_or('\0').is_digit(10) {
-            return self.make_token(TokenType::Error);
+            return Token::Error(self.lexeme());
         }
         while self.peek().unwrap_or('\0').is_digit(10) { self.advance(); }
-        return self.make_token(TokenType::Number);
+        return Token::Number(self.lexeme());
     }
 
-    fn make_token(&mut self, _type: TokenType) -> Token<'a> {
-        let token = Token {
-            _type: _type,
-            lexeme: &self.source_file[self.start..self.current]
-        };
-
-        return token;
+    fn lexeme(&mut self) -> &'a str {
+        return &self.source_file[self.start..self.current];
     }
 
-    pub fn scan_token(&mut self) -> Token<'a> {
+    pub fn scan_token(& mut self) -> Token<'a> {
         self.skip_whitespace();
         self.start = self.current;
         let c = match self.advance() {
             Some(c) => c,
-            None => return self.make_token(TokenType::Eof),
+            None => return Token::Eof,
         };
 
         if c.is_digit(10) {
             return self.number();
         }
 
-        match c {
-            '+' => return self.make_token(TokenType::Plus),
-            '-' => return self.make_token(TokenType::Minus),
-            '*' => return self.make_token(TokenType::Star),
-            '/' => return self.make_token(TokenType::Slash),
-            '(' => return self.make_token(TokenType::LeftParen),
-            ')' => return self.make_token(TokenType::RightParen),
-            _ => return self.make_token(TokenType::Error),
+        return match c {
+            '+' => Token::Plus(self.lexeme()),
+            '-' => Token::Minus(self.lexeme()),
+            '*' => Token::Star(self.lexeme()),
+            '/' => Token::Slash(self.lexeme()),
+            '(' => Token::LeftParen(self.lexeme()),
+            ')' => Token::RightParen(self.lexeme()),
+            _ => Token::Error(self.lexeme()),
         }
     }
 }
@@ -106,9 +103,8 @@ mod tests {
         let mut tokenizer = Tokenizer::new(src);
         loop {
             let token = tokenizer.scan_token();
-            let _type = token._type;
             res.push(token);
-            if _type == TokenType::Eof { break; }
+            if token == Token::Eof { break; }
         }
         return res;
     }
@@ -116,7 +112,7 @@ mod tests {
     #[test]
     fn empty_string() {
         assert_eq!(
-            vec![Token::new(TokenType::Eof, "")],
+            vec![Token::Eof],
             vectorize(""),
         );
     }
@@ -124,7 +120,7 @@ mod tests {
     #[test]
     fn single_whitespace_string() {
         assert_eq!(
-            vec![Token::new(TokenType::Eof, "")],
+            vec![Token::Eof],
             vectorize(" "),
         );
     }
@@ -132,7 +128,7 @@ mod tests {
     #[test]
     fn long_whitespace_string() {
         assert_eq!(
-            vec![Token::new(TokenType::Eof, "")],
+            vec![Token::Eof],
             vectorize("         "),
         )
     }
@@ -141,8 +137,8 @@ mod tests {
     fn single_symbol_number() {
         assert_eq!(
             vec![
-                Token::new(TokenType::Number, "1"),
-                Token::new(TokenType::Eof, ""),
+                Token::Number("1"),
+                Token::Eof,
             ],
             vectorize("1")
         );
@@ -152,12 +148,12 @@ mod tests {
     fn single_symbol_tokens() {
         assert_eq!(
             vec![
-                Token::new(TokenType::LeftParen, "("),
-                Token::new(TokenType::Number, "1"),
-                Token::new(TokenType::Plus, "+"),
-                Token::new(TokenType::Number, "1"),
-                Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::Eof, ""),
+                Token::LeftParen("("),
+                Token::Number("1"),
+                Token::Plus("+"),
+                Token::Number("1"),
+                Token::RightParen(")"),
+                Token::Eof,
             ],
             vectorize("(1+1)"),
         );
@@ -167,12 +163,12 @@ mod tests {
     fn spaced_single_symbol_tokens() {
         assert_eq!(
             vec![
-                Token::new(TokenType::LeftParen, "("),
-                Token::new(TokenType::Number, "1"),
-                Token::new(TokenType::Plus, "+"),
-                Token::new(TokenType::Number, "1"),
-                Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::Eof, ""),
+                Token::LeftParen("("),
+                Token::Number("1"),
+                Token::Plus("+"),
+                Token::Number("1"),
+                Token::RightParen(")"),
+                Token::Eof,
             ],
             vectorize("( 1 + 1 )"),
         );
@@ -182,12 +178,12 @@ mod tests {
     fn long_spaced_single_symbol_tokens() {
         assert_eq!(
             vec![
-                Token::new(TokenType::LeftParen, "("),
-                Token::new(TokenType::Number, "1"),
-                Token::new(TokenType::Plus, "+"),
-                Token::new(TokenType::Number, "1"),
-                Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::Eof, ""),
+                Token::LeftParen("("),
+                Token::Number("1"),
+                Token::Plus("+"),
+                Token::Number("1"),
+                Token::RightParen(")"),
+                Token::Eof,
             ],
             vectorize("(    1     +1    )"),
         );
@@ -197,8 +193,8 @@ mod tests {
     fn long_number() {
         assert_eq!(
             vec![
-                Token::new(TokenType::Number, "123456"),
-                Token::new(TokenType::Eof, ""),
+                Token::Number("123456"),
+                Token::Eof,
             ],
             vectorize("123456"),
         );
@@ -208,16 +204,16 @@ mod tests {
     fn expression() {
         assert_eq!(
             vec![
-                Token::new(TokenType::Number, "123456"),
-                Token::new(TokenType::Plus, "+"),
-                Token::new(TokenType::Number, "1"),
-                Token::new(TokenType::Slash, "/"),
-                Token::new(TokenType::LeftParen, "("),
-                Token::new(TokenType::Number, "984"),
-                Token::new(TokenType::Minus, "-"),
-                Token::new(TokenType::Number, "12"),
-                Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::Eof, ""),
+                Token::Number("123456"),
+                Token::Plus("+"),
+                Token::Number("1"),
+                Token::Slash("/"),
+                Token::LeftParen("("),
+                Token::Number("984"),
+                Token::Minus("-"),
+                Token::Number("12"),
+                Token::RightParen(")"),
+                Token::Eof,
             ],
             vectorize("123456 + 1  / (984 - 12)"),
         );
@@ -227,8 +223,8 @@ mod tests {
     fn float() {
         assert_eq!(
             vec![
-                Token::new(TokenType::Number, "1.1"),
-                Token::new(TokenType::Eof, ""),
+                Token::Number("1.1"),
+                Token::Eof,
             ],
             vectorize("1.1"),
         );
@@ -238,8 +234,8 @@ mod tests {
     fn long_float() {
         assert_eq!(
             vec![
-                Token::new(TokenType::Number, "1245.123142"),
-                Token::new(TokenType::Eof, ""),
+                Token::Number("1245.123142"),
+                Token::Eof,
             ],
             vectorize("1245.123142"),
         );
@@ -249,13 +245,13 @@ mod tests {
     fn paren_invalid_float() {
         assert_eq!(
             vec![
-                Token::new(TokenType::LeftParen, "("),
-                Token::new(TokenType::LeftParen, "("),
-                Token::new(TokenType::Error, "."),
-                Token::new(TokenType::Number, "23423"),
-                Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::RightParen, ")"),
-                Token::new(TokenType::Eof, ""),
+                Token::LeftParen("("),
+                Token::LeftParen("("),
+                Token::Error("."),
+                Token::Number("23423"),
+                Token::RightParen(")"),
+                Token::RightParen(")"),
+                Token::Eof,
             ],
             vectorize("((.23423))"),
         );
@@ -265,8 +261,8 @@ mod tests {
     fn invalid_float() {
         assert_eq!(
             vec![
-                Token::new(TokenType::Error, "0."),
-                Token::new(TokenType::Eof, ""),
+                Token::Error("0."),
+                Token::Eof,
             ],
             vectorize("0."),
         );
@@ -276,8 +272,8 @@ mod tests {
     fn invalid_float_2() {
         assert_eq!(
             vec![
-                Token::new(TokenType::Error, "9888."),
-                Token::new(TokenType::Eof, ""),
+                Token::Error("9888."),
+                Token::Eof,
             ],
             vectorize("9888."),
         );
