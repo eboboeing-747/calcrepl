@@ -4,6 +4,7 @@ use std::io::{Write, stdin};
 mod token;
 mod tokenizer;
 mod parser;
+mod vm;
 
 fn main() {
     loop {
