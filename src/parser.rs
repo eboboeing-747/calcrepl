@@ -2,11 +2,13 @@ use core::panic;
 use std::fmt;
 use crate::tokenizer::Tokenizer;
 use crate::token::Token;
+use crate::vm::{ Code, Num };
 
 #[derive(Clone, Copy)]
 enum BindingPower {
     Term = 1,
     Factor = 3,
+    Negate = 5,
 }
 
 pub enum S<'a> {
@@ -31,39 +33,80 @@ impl fmt::Display for S<'_> {
 
 pub struct Parser<'a> {
     tokenizer: Tokenizer<'a>,
+    code: &'a mut Vec<Code>,
     current: Token<'a>,
     previous: Token<'a>,
+    dframe: u8, // debug
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(input: &'a str) -> Self {
+    pub fn new(input: &'a str, code: &'a mut Vec<Code>) -> Self {
         let mut tokenizer = Tokenizer::new(input);
         let token = tokenizer.scan_token();
         return Parser {
             tokenizer: tokenizer,
+            code: code,
             current: token,
             previous: Token::Eof,
+            dframe: 0,
         };
     }
 
     fn next(&mut self) -> Token<'a> {
         self.previous = self.current;
         self.current = self.tokenizer.scan_token();
+        for _ in (1..self.dframe) {
+            print!("        ");
+        }
+        println!("consumed {}", self.previous);
         return self.previous;
     }
 
     fn peek(&mut self) -> Token<'a> { 
+        for _ in (1..self.dframe) {
+            print!("        ");
+        }
+        println!("peek at {}", self.current);
         return self.current;
     }
 
-    pub fn parse(&mut self) -> S<'a> {
-        return self.expr_bp(0);
+    pub fn parse(&mut self) {
+        self.expr_bp(0);
     }
 
-    fn expr_bp(& mut self, min_bp: u8) -> S<'a> {
+    fn number(&mut self, lexeme: &str) {
+        let number: Num = lexeme.parse().expect("failed to parse");
+        self.emit(Code::Constant(number));
+    }
+
+    fn emit(&mut self, code: Code) {
+        for _ in (1..self.dframe) {
+            print!("        ");
+        }
+        println!("emitting {:?}", code);
+        self.code.push(code);
+    }
+
+    fn expr_bp(&mut self, min_bp: u8) {
+        self.dframe += 1;
+        for _ in (1..self.dframe) {
+            print!("        ");
+        }
+        println!("call with min_bp = {min_bp}");
         let token = self.next();
-        let mut lhs = match token {
-            Token::Number(_lexeme) => S::Atom(token),
+        let _lhs = match token {
+            Token::Number(lexeme) => self.number(lexeme),
+            Token::Minus(_lexeme) => {
+        for _ in (1..self.dframe) {
+            print!("        ");
+        }
+                println!("parsing unary");
+                let ((), r_bp) = Self::prefix_binding_power(token);
+                self.expr_bp(r_bp);
+                self.emit(Code::Negate);
+                self.dframe -= 1;
+                return;
+            }
             t => panic!("expected Token::Number, got {} instead", t),
         };
 
@@ -71,21 +114,39 @@ impl<'a> Parser<'a> {
             let op = match self.peek() {
                 Token::Eof => break,
                 Token::Number(_lexeme) =>
-                    panic!("expected Operator, got {} instead", token),
+                    panic!("expected Operator, got {token} instead"),
                 Token::Error(_lexeme) =>
-                    panic!("expected Operator, got {} instead", token),
+                    panic!("expected Operator, got {token} instead"),
                 t => t,
             };
 
             let (l_bp, r_bp) = Self::infix_binding_power(op);
-            if l_bp < min_bp { break; }
-            self.next();
-            let rhs = self.expr_bp(r_bp);
-
-            lhs = S::Cons(op, vec![lhs, rhs]);
+            if l_bp < min_bp {
+        for _ in (1..self.dframe) {
+            print!("        ");
         }
+                println!("breaking with op {op}, {l_bp} < min_bp ({min_bp})");
+                break;
+            }
+            self.next();
+            let _rhs = self.expr_bp(r_bp);
 
-        return lhs;
+            match op {
+                Token::Plus(_lexeme) => self.emit(Code::Add),
+                Token::Minus(_lexeme) => self.emit(Code::Subtract),
+                Token::Star(_lexeme) => self.emit(Code::Multiply),
+                Token::Slash(_lexeme) => self.emit(Code::Divide),
+                _ => panic!("parsing error"),
+            }
+        }
+        self.dframe -= 1;
+    }
+
+    fn prefix_binding_power(op: Token) -> ((), u8) { 
+        match op {
+            Token::Minus(_lexeme) => ((), BindingPower::Negate as u8),
+            _ => panic!("bad op: {:?}", op),
+        }
     }
 
     fn infix_binding_power(op: Token) -> (u8, u8) {
@@ -107,7 +168,8 @@ mod tests {
 
     #[test]
     fn walk() {
-        let mut parser = Parser::new("1 + 2 * 3");
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 * 3", &mut code);
         assert_eq!(parser.peek(), Token::Number("1"));
         assert_eq!(parser.next(), Token::Number("1"));
         assert_eq!(parser.peek(), Token::Plus("+"));
@@ -124,43 +186,142 @@ mod tests {
 
     #[test]
     fn single_number() {
-        let mut parser = Parser::new("1");
-        let s = parser.parse();
-        assert_eq!(s.to_string(), "1");
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![Code::Constant(1.0)]);
     }
 
     #[test]
-    fn simple_expression() {
-        let mut parser = Parser::new("1 + 1");
-        let s = parser.parse();
-        assert_eq!(s.to_string(), "(+ 1 1)");
+    fn infix_expression() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Add,
+        ]);
     }
 
     #[test]
-    fn expression_bp_1() {
-        let mut parser = Parser::new("1 + 2 * 3");
-        let s = parser.parse();
-        assert_eq!(s.to_string(), "(+ 1 (* 2 3))")
+    fn infix_expression_bp_1() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 * 3", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Constant(3.0),
+            Code::Multiply,
+            Code::Add,
+        ])
     }
 
     #[test]
-    fn expression_bp_2() {
-        let mut parser = Parser::new("1 * 2 + 3");
-        let s = parser.parse();
-        assert_eq!(s.to_string(), "(+ (* 1 2) 3)")
+    fn infix_expression_bp_2() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 * 2 + 3", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Multiply,
+            Code::Constant(3.0),
+            Code::Add,
+        ])
     }
 
     #[test]
-    fn complicated_expression_1() {
-        let mut parser = Parser::new("1 + 2 * 3 * 4 + 5");
-        let s = parser.parse();
-        assert_eq!(s.to_string(), "(+ (+ 1 (* (* 2 3) 4)) 5)");
+    fn complicated_infix_expression_1() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 * 3 * 4 + 5", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Constant(3.0),
+            Code::Multiply,
+            Code::Constant(4.0),
+            Code::Multiply,
+            Code::Add,
+            Code::Constant(5.0),
+            Code::Add,
+        ]);
     }
 
     #[test]
-    fn complicated_expression_2() {
-        let mut parser = Parser::new("1 * 2 * 3 + 4 * 5");
-        let s = parser.parse();
-        assert_eq!(s.to_string(), "(+ (* (* 1 2) 3) (* 4 5))");
+    fn complicated_infix_expression_2() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 * 2 * 3 + 4 * 5", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Multiply,
+            Code::Constant(3.0),
+            Code::Multiply,
+            Code::Constant(4.0),
+            Code::Constant(5.0),
+            Code::Multiply,
+            Code::Add,
+        ]);
+    }
+
+    #[test]
+    fn prefix_expr_1() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("-1", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Negate,
+        ]);
+    }
+
+    #[test]
+    fn prefix_expr_2() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("--1", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Negate,
+            Code::Negate,
+        ]);
+    }
+
+    #[test]
+    fn infix_prefix_expression_1() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + -2 - -3", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Negate,
+            Code::Add,
+            Code::Constant(3.0),
+            Code::Negate,
+            Code::Subtract,
+        ]);
+    }
+
+    #[test]
+    fn infix_prefix_expression_2() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + -2 * 3 - -4", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Negate,
+            Code::Constant(3.0),
+            Code::Multiply,
+            Code::Add,
+            Code::Constant(4.0),
+            Code::Negate,
+            Code::Subtract,
+        ]);
     }
 }

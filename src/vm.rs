@@ -1,28 +1,37 @@
-type Num = f64;
+pub type Num = f64;
 
-enum Code {
+#[derive(Debug, PartialEq)]
+pub enum Code {
     Constant(Num),
     Add,
     Subtract,
     Multiply,
     Divide,
+    Negate,
 }
 
-struct VM {
+pub struct VM {
     code: Vec<Code>,
     stack: Vec<Num>,
 }
 
 impl VM {
-    fn new(code: Vec<Code>) -> Self {
+    pub fn new(code: Vec<Code>) -> Self {
         return VM {
             code: code,
             stack: Vec::new(),
         };
     }
 
-    fn run(&mut self) {
+    fn reset(&mut self) {
+        self.code.clear();
+        self.stack.clear();
+    }
+
+    pub fn run(&mut self) -> Num {
+        println!();
         for code in &self.code {
+            println!("{:?}", code);
             match code {
                 Code::Constant(i) => self.stack.push(*i),
                 Code::Add => {
@@ -53,8 +62,15 @@ impl VM {
                         .unwrap_or_else(|| panic!("stack is empty"));
                     self.stack.push(left / right);
                 }
+                Code::Negate => {
+                    let operand = self.stack.pop()
+                        .unwrap_or_else(|| panic!("stack is empty"));
+                    self.stack.push(-operand);
+                }
             }
         }
+
+        return self.stack.pop().unwrap_or_else(|| panic!("runtime error"));
     }
 }
 
@@ -69,8 +85,7 @@ mod tests {
             Code::Constant(1.0),
             Code::Add,
         ]);
-        vm.run();
-        assert_eq!(vm.stack, vec![2.0]);
+        assert_eq!(vm.run(), 2.0);
     }
 
     #[test]
@@ -84,7 +99,15 @@ mod tests {
             Code::Constant(2.0),
             Code::Divide,
         ]);
-        vm.run();
-        assert_eq!(vm.stack, vec![576.0]);
+        assert_eq!(vm.run(), 576.0);
+    }
+
+    #[test]
+    fn negate() {
+        let mut vm = VM::new(vec![
+            Code::Constant(1.0),
+            Code::Negate,
+        ]);
+        assert_eq!(vm.run(), -1.0);
     }
 }
