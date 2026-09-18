@@ -7,6 +7,7 @@ use crate::token::Token;
 enum BindingPower {
     Term = 1,
     Factor = 3,
+    Negate = 5,
 }
 
 pub enum S<'a> {
@@ -60,21 +61,23 @@ impl<'a> Parser<'a> {
         return self.expr_bp(0);
     }
 
-    fn expr_bp(& mut self, min_bp: u8) -> S<'a> {
-        let token = self.next();
-        let mut lhs = match token {
-            Token::Number(_lexeme) => S::Atom(token),
+    fn expr_bp(&mut self, min_bp: u8) -> S<'a> {
+        let mut lhs = match self.next() {
+            number @ Token::Number(_lexeme) => S::Atom(number),
+            op @ Token::Minus(_lexeme) => {
+                let ((), r_bp) = Self::prefix_binding_power(op);
+                let rhs = self.expr_bp(r_bp);
+                S::Cons(op, vec![rhs])
+            }
             t => panic!("expected Token::Number, got {} instead", t),
         };
 
         loop {
             let op = match self.peek() {
                 Token::Eof => break,
-                Token::Number(_lexeme) =>
-                    panic!("expected Operator, got {} instead", token),
-                Token::Error(_lexeme) =>
-                    panic!("expected Operator, got {} instead", token),
-                t => t,
+                valid @ (Token::Plus(_) | Token::Minus(_) |
+                    Token::Star(_) | Token::Slash(_)) => valid,
+                _ => panic!("expected operator"),
             };
 
             let (l_bp, r_bp) = Self::infix_binding_power(op);
@@ -86,6 +89,13 @@ impl<'a> Parser<'a> {
         }
 
         return lhs;
+    }
+
+    fn prefix_binding_power(op: Token) -> ((), u8) {
+        return match op {
+            Token::Minus(_lexeme) => ((), BindingPower::Negate as u8),
+            t => panic!("unknown operator '{}'", t),
+        }
     }
 
     fn infix_binding_power(op: Token) -> (u8, u8) {
@@ -162,5 +172,40 @@ mod tests {
         let mut parser = Parser::new("1 * 2 * 3 + 4 * 5");
         let s = parser.parse();
         assert_eq!(s.to_string(), "(+ (* (* 1 2) 3) (* 4 5))");
+    }
+
+    #[test]
+    fn prefix_1() {
+        let mut parser = Parser::new("-1");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(- 1)");
+    }
+
+    #[test]
+    fn prefix_2() {
+        let mut parser = Parser::new("--1");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(- (- 1))");
+    }
+
+    #[test]
+    fn infix_prefix_1() {
+        let mut parser = Parser::new("1 + -2 * 3 - -4");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(- (+ 1 (* (- 2) 3)) (- 4))");
+    }
+
+    #[test]
+    fn infix_prefix_2() {
+        let mut parser = Parser::new("-1 + 2 * -3 - 4");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(- (+ (- 1) (* 2 (- 3))) 4)");
+    }
+
+    #[test]
+    fn infix_prefix_3() {
+        let mut parser = Parser::new("-1 + -2 * -3 - -4");
+        let s = parser.parse();
+        assert_eq!(s.to_string(), "(- (+ (- 1) (* (- 2) (- 3))) (- 4))");
     }
 }
