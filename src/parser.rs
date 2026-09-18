@@ -36,7 +36,6 @@ pub struct Parser<'a> {
     code: &'a mut Vec<Code>,
     current: Token<'a>,
     previous: Token<'a>,
-    dframe: u8, // debug
 }
 
 impl<'a> Parser<'a> {
@@ -48,25 +47,16 @@ impl<'a> Parser<'a> {
             code: code,
             current: token,
             previous: Token::Eof,
-            dframe: 0,
         };
     }
 
     fn next(&mut self) -> Token<'a> {
         self.previous = self.current;
         self.current = self.tokenizer.scan_token();
-        for _ in (1..self.dframe) {
-            print!("        ");
-        }
-        println!("consumed {}", self.previous);
         return self.previous;
     }
 
     fn peek(&mut self) -> Token<'a> { 
-        for _ in (1..self.dframe) {
-            print!("        ");
-        }
-        println!("peek at {}", self.current);
         return self.current;
     }
 
@@ -80,32 +70,17 @@ impl<'a> Parser<'a> {
     }
 
     fn emit(&mut self, code: Code) {
-        for _ in (1..self.dframe) {
-            print!("        ");
-        }
-        println!("emitting {:?}", code);
         self.code.push(code);
     }
 
     fn expr_bp(&mut self, min_bp: u8) {
-        self.dframe += 1;
-        for _ in (1..self.dframe) {
-            print!("        ");
-        }
-        println!("call with min_bp = {min_bp}");
         let token = self.next();
         let _lhs = match token {
             Token::Number(lexeme) => self.number(lexeme),
             Token::Minus(_lexeme) => {
-        for _ in (1..self.dframe) {
-            print!("        ");
-        }
-                println!("parsing unary");
                 let ((), r_bp) = Self::prefix_binding_power(token);
                 self.expr_bp(r_bp);
                 self.emit(Code::Negate);
-                self.dframe -= 1;
-                return;
             }
             t => panic!("expected Token::Number, got {} instead", t),
         };
@@ -121,13 +96,7 @@ impl<'a> Parser<'a> {
             };
 
             let (l_bp, r_bp) = Self::infix_binding_power(op);
-            if l_bp < min_bp {
-        for _ in (1..self.dframe) {
-            print!("        ");
-        }
-                println!("breaking with op {op}, {l_bp} < min_bp ({min_bp})");
-                break;
-            }
+            if l_bp < min_bp { break; }
             self.next();
             let _rhs = self.expr_bp(r_bp);
 
@@ -139,7 +108,6 @@ impl<'a> Parser<'a> {
                 _ => panic!("parsing error"),
             }
         }
-        self.dframe -= 1;
     }
 
     fn prefix_binding_power(op: Token) -> ((), u8) { 
@@ -321,6 +289,24 @@ mod tests {
             Code::Add,
             Code::Constant(4.0),
             Code::Negate,
+            Code::Subtract,
+        ]);
+    }
+
+    #[test]
+    fn infix_prefix_expression_3() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("-1 + 2 * -3 - 4", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Negate,
+            Code::Constant(2.0),
+            Code::Constant(3.0),
+            Code::Negate,
+            Code::Multiply,
+            Code::Add,
+            Code::Constant(4.0),
             Code::Subtract,
         ]);
     }
