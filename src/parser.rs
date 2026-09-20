@@ -82,12 +82,17 @@ impl<'a> Parser<'a> {
                 self.expr_bp(r_bp);
                 self.emit(Code::Negate);
             }
+            Token::LeftParen(_lexeme) => {
+                self.expr_bp(0);
+                assert_eq!(self.next(), Token::RightParen(")"));
+            }
             t => panic!("expected Token::Number, got {} instead", t),
         };
 
         loop {
             let op = match self.peek() {
                 Token::Eof => break,
+                Token::RightParen(_lexeme) => break,
                 Token::Number(_lexeme) =>
                     panic!("expected Operator, got {token} instead"),
                 Token::Error(_lexeme) =>
@@ -308,6 +313,58 @@ mod tests {
             Code::Add,
             Code::Constant(4.0),
             Code::Subtract,
+        ]);
+    }
+
+    #[test]
+    fn paren_expression_1() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("(1)", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+        ]);
+    }
+
+    #[test]
+    fn paren_expression_2() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("(((((1)))))", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+        ]);
+    }
+
+    #[test]
+    fn paren_expression_3() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("(1 + 2) * 3", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Add,
+            Code::Constant(3.0),
+            Code::Multiply,
+        ]);
+    }
+
+    #[test]
+    fn paren_expression_4() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 / 2 * (3 - 4) + 5", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Divide,
+            Code::Constant(3.0),
+            Code::Constant(4.0),
+            Code::Subtract,
+            Code::Multiply,
+            Code::Constant(5.0),
+            Code::Add,
         ]);
     }
 }
