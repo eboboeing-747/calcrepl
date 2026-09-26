@@ -4,6 +4,7 @@ use std::fmt::Display;
 pub enum Token<'a> {
     Eof,
     Error(&'a str),
+    Identifier(&'a str),
     LeftParen(&'a str),
     Minus(&'a str),
     Number(&'a str),
@@ -18,6 +19,7 @@ impl Display for Token<'_> {
         match self {
             Self::Eof => write!(f, "Eof"),
             Self::Error(lexeme) => write!(f, "{}", lexeme),
+            Self::Identifier(lexeme) => write!(f, "{}", lexeme),
             Self::LeftParen(lexeme) => write!(f, "{}", lexeme),
             Self::Minus(lexeme) => write!(f, "{}", lexeme),
             Self::Number(lexeme) => write!(f, "{}", lexeme),
