@@ -1,5 +1,4 @@
 use core::panic;
-use std::fmt;
 use crate::tokenizer::Tokenizer;
 use crate::token::Token;
 use crate::vm::{ Code, Num };
@@ -9,26 +8,6 @@ enum BindingPower {
     Term = 1,
     Factor = 3,
     Negate = 5,
-}
-
-pub enum S<'a> {
-    Atom(Token<'a>),
-    Cons(Token<'a>, Vec<S<'a>>),
-}
-
-impl fmt::Display for S<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            S::Atom(token) => write!(f, "{}", token),
-            S::Cons(head, rest) => {
-                write!(f, "({}", head)?;
-                for s in rest {
-                    write!(f, " {}", s)?
-                }
-                write!(f, ")")
-            }
-        }
-    }
 }
 
 pub struct Parser<'a> {
