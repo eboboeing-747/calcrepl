@@ -1,7 +1,7 @@
 use core::panic;
 use crate::tokenizer::Tokenizer;
 use crate::token::Token;
-use crate::vm::{ Code, Num };
+use crate::vm::{ Num, Code };
 
 #[derive(Clone, Copy)]
 enum BindingPower {
@@ -10,15 +10,15 @@ enum BindingPower {
     Negate = 5,
 }
 
-pub struct Parser<'a> {
-    tokenizer: Tokenizer<'a>,
-    code: &'a mut Vec<Code>,
-    current: Token<'a>,
-    previous: Token<'a>,
+pub struct Parser<'src, 'a> {
+    tokenizer: Tokenizer<'src>,
+    code: &'a mut Vec<Code<'src>>,
+    current: Token<'src>,
+    previous: Token<'src>,
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(input: &'a str, code: &'a mut Vec<Code>) -> Self {
+impl<'src, 'a> Parser<'src, 'a> {
+    pub fn new(input: &'src str, code: &'a mut Vec<Code<'src>>) -> Self {
         let mut tokenizer = Tokenizer::new(input);
         let token = tokenizer.scan_token();
         return Parser {
@@ -29,18 +29,54 @@ impl<'a> Parser<'a> {
         };
     }
 
-    fn next(&mut self) -> Token<'a> {
+    fn next(&mut self) -> Token<'src> {
         self.previous = self.current;
         self.current = self.tokenizer.scan_token();
         return self.previous;
     }
 
-    fn peek(&mut self) -> Token<'a> { 
+    fn peek(&mut self) -> Token<'src> { 
         return self.current;
     }
 
+    fn expect(&mut self, expected: Token, message: &'static str) {
+        let token = self.next();
+        if std::mem::discriminant(&token) != std::mem::discriminant(&expected)
+            { panic!("{message}"); }
+    }
+
     pub fn parse(&mut self) {
+        self.statement();
+    }
+
+    fn let_stmt(&mut self) {
+        self.expect(Token::Equal(""), "expect '=' after 'let'");
         self.expr_bp(0);
+        self.expect(Token::Semicolon(""), "expect ';' after initializer expression");
+    }
+
+    fn info_stmt(&mut self) {
+        self.emit(Code::Info);
+        self.expect(Token::Semicolon(""), "expect ';' after 'info'");
+    }
+
+    fn exit_stmt(&mut self) {
+        self.emit(Code::Exit);
+        self.expect(Token::Semicolon(""), "expect ';' after 'exit'");
+    }
+
+    fn expr_stmt(&mut self) {
+        self.expr_bp(0);
+        self.expect(Token::Semicolon(""), "expect ';' after expression");
+    }
+
+    fn statement(&mut self) {
+        match self.next() {
+            Token::Identifier("let") => self.let_stmt(),
+            Token::Identifier("info") => self.info_stmt(),
+            Token::Identifier("exit") => self.exit_stmt(),
+            _ => self.expr_stmt(),
+        }
     }
 
     fn number(&mut self, lexeme: &str) {
@@ -48,7 +84,7 @@ impl<'a> Parser<'a> {
         self.emit(Code::Constant(number));
     }
 
-    fn emit(&mut self, code: Code) {
+    fn emit(&mut self, code: Code<'src>) {
         self.code.push(code);
     }
 
@@ -134,6 +170,21 @@ mod tests {
         assert_eq!(parser.next(), Token::Number("3"));
         assert_eq!(parser.peek(), Token::Eof);
         assert_eq!(parser.next(), Token::Eof);
+    }
+
+    #[test]
+    #[should_panic(expected = "expect identifier")]
+    fn expect_1() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("+", &mut code);
+        parser.expect(Token::Identifier("anything"), "expect identifier");
+    }
+
+    #[test]
+    fn expect_2() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("+", &mut code);
+        parser.expect(Token::Plus("anything"), "expect operator");
     }
 
     #[test]

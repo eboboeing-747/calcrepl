@@ -42,7 +42,7 @@ impl<'a> Tokenizer<'a> {
                 Some(c) => c,
                 None => break,
             };
-            if c == ' ' {
+            if c == ' ' || c == '\n' {
                 self.advance();
                 continue;
             }
@@ -96,12 +96,14 @@ impl<'a> Tokenizer<'a> {
         }
 
         return match c {
-            '+' => Token::Plus(self.lexeme()),
-            '-' => Token::Minus(self.lexeme()),
-            '*' => Token::Star(self.lexeme()),
-            '/' => Token::Slash(self.lexeme()),
             '(' => Token::LeftParen(self.lexeme()),
             ')' => Token::RightParen(self.lexeme()),
+            '*' => Token::Star(self.lexeme()),
+            '+' => Token::Plus(self.lexeme()),
+            '-' => Token::Minus(self.lexeme()),
+            '/' => Token::Slash(self.lexeme()),
+            ';' => Token::Semicolon(self.lexeme()),
+            '=' => Token::Equal(self.lexeme()),
             _ => Token::Error(self.lexeme()),
         }
     }
@@ -131,19 +133,31 @@ mod tests {
     }
 
     #[test]
-    fn single_whitespace_string() {
+    fn whitespace_endline() {
         assert_eq!(
             vec![Token::Eof],
             vectorize(" "),
         );
-    }
 
-    #[test]
-    fn long_whitespace_string() {
         assert_eq!(
             vec![Token::Eof],
             vectorize("         "),
-        )
+        );
+
+        assert_eq!(
+            vec![Token::Eof],
+            vectorize("\n"),
+        );
+
+        assert_eq!(
+            vec![Token::Eof],
+            vectorize("     \n"),
+        );
+
+        assert_eq!(
+            vec![Token::Number("1"), Token::Eof,],
+            vectorize("\n1"),
+        );
     }
 
     #[test]

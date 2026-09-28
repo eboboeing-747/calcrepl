@@ -1,5 +1,5 @@
 use parser::Parser;
-use std::io::{Write, stdin};
+use std::io::{ Write, stdin };
 use vm::{ Code, VM };
 
 mod token;
@@ -13,11 +13,11 @@ fn main() {
         print!("> ");
         let _ = std::io::stdout().flush();
         stdin().read_line(&mut line).expect("failed to read line");
-        let line: &str = line.trim();
-        if line == "exit" { break; }
         let mut code: Vec<Code> = Vec::new();
+
         let mut parser = Parser::new(&line, &mut code);
         parser.parse();
+
         let mut vm = VM::new(code);
         let result = vm.run();
         println!("{result}");

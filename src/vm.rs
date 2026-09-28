@@ -1,22 +1,27 @@
 pub type Num = f64;
 
 #[derive(Debug, PartialEq)]
-pub enum Code {
+pub enum Code<'a> {
     Constant(Num),
+    Variable(&'a str),
+
     Add,
     Subtract,
     Multiply,
     Divide,
     Negate,
+
+    Info,
+    Exit,
 }
 
-pub struct VM {
-    code: Vec<Code>,
+pub struct VM<'a> {
+    code: Vec<Code<'a>>,
     stack: Vec<Num>,
 }
 
-impl VM {
-    pub fn new(code: Vec<Code>) -> Self {
+impl<'a> VM<'a> {
+    pub fn new(code: Vec<Code<'a>>) -> Self {
         return VM {
             code: code,
             stack: Vec::new(),
@@ -34,6 +39,7 @@ impl VM {
             println!("{:?}", code);
             match code {
                 Code::Constant(i) => self.stack.push(*i),
+                Code::Variable(v) => todo!(),
                 Code::Add => {
                     let right = self.stack.pop()
                         .unwrap_or_else(|| panic!("stack is empty"));
@@ -67,6 +73,8 @@ impl VM {
                         .unwrap_or_else(|| panic!("stack is empty"));
                     self.stack.push(-operand);
                 }
+                Code::Info => todo!(),
+                Code::Exit => std::process::exit(0),
             }
         }
 
@@ -109,5 +117,10 @@ mod tests {
             Code::Negate,
         ]);
         assert_eq!(vm.run(), -1.0);
+    }
+
+    #[test]
+    fn exit() {
+
     }
 }
