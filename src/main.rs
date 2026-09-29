@@ -18,8 +18,7 @@ fn main() {
         let mut parser = Parser::new(&line, &mut code);
         parser.parse();
 
-        let mut vm = VM::new(code);
-        let result = vm.run();
-        println!("{result}");
+        let mut vm = VM::new(&code);
+        vm.run();
     }
 }

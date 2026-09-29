@@ -39,10 +39,17 @@ impl<'src, 'a> Parser<'src, 'a> {
         return self.current;
     }
 
-    fn expect(&mut self, expected: Token, message: &'static str) {
+    fn expect(&mut self, expected: Token, message: &'static str) -> Token<'src> {
         let token = self.next();
         if std::mem::discriminant(&token) != std::mem::discriminant(&expected)
             { panic!("{message}"); }
+        return token;
+    }
+
+    fn _match(&mut self, token: Token) -> Token<'src> {
+        if std::mem::discriminant(&self.peek()) ==
+            std::mem::discriminant(&token) { return self.next(); }
+        return self.peek();
     }
 
     pub fn parse(&mut self) {
@@ -50,17 +57,25 @@ impl<'src, 'a> Parser<'src, 'a> {
     }
 
     fn let_stmt(&mut self) {
-        self.expect(Token::Equal(""), "expect '=' after 'let'");
+        self.next();
+        let name = self.expect(Token::Identifier(""), "expect identifier after 'let'");
+        self.expect(Token::Equal(""), "expect '=' after 'let <name>'");
         self.expr_bp(0);
         self.expect(Token::Semicolon(""), "expect ';' after initializer expression");
+        self.emit(Code::Variable(match name {
+            Token::Identifier(lexeme) => lexeme,
+            _ => panic!("error"),
+        }));
     }
 
     fn info_stmt(&mut self) {
+        self.next();
         self.emit(Code::Info);
         self.expect(Token::Semicolon(""), "expect ';' after 'info'");
     }
 
     fn exit_stmt(&mut self) {
+        self.next();
         self.emit(Code::Exit);
         self.expect(Token::Semicolon(""), "expect ';' after 'exit'");
     }
@@ -71,7 +86,7 @@ impl<'src, 'a> Parser<'src, 'a> {
     }
 
     fn statement(&mut self) {
-        match self.next() {
+        match self.peek() {
             Token::Identifier("let") => self.let_stmt(),
             Token::Identifier("info") => self.info_stmt(),
             Token::Identifier("exit") => self.exit_stmt(),
@@ -108,6 +123,7 @@ impl<'src, 'a> Parser<'src, 'a> {
             let op = match self.peek() {
                 Token::Eof => break,
                 Token::RightParen(_lexeme) => break,
+                Token::Semicolon(_lexeme) => break,
                 Token::Number(_lexeme) =>
                     panic!("expected Operator, got {token} instead"),
                 Token::Error(_lexeme) =>
@@ -191,7 +207,7 @@ mod tests {
     fn single_number() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![Code::Constant(1.0)]);
     }
 
@@ -199,7 +215,7 @@ mod tests {
     fn infix_expression() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 + 2", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Constant(2.0),
@@ -211,7 +227,7 @@ mod tests {
     fn infix_expression_bp_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 + 2 * 3", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Constant(2.0),
@@ -225,7 +241,7 @@ mod tests {
     fn infix_expression_bp_2() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 * 2 + 3", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Constant(2.0),
@@ -239,7 +255,7 @@ mod tests {
     fn complicated_infix_expression_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 + 2 * 3 * 4 + 5", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Constant(2.0),
@@ -257,7 +273,7 @@ mod tests {
     fn complicated_infix_expression_2() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 * 2 * 3 + 4 * 5", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Constant(2.0),
@@ -275,7 +291,7 @@ mod tests {
     fn prefix_expr_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("-1", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Negate,
@@ -286,7 +302,7 @@ mod tests {
     fn prefix_expr_2() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("--1", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Negate,
@@ -298,7 +314,7 @@ mod tests {
     fn infix_prefix_expression_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 + -2 - -3", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Constant(2.0),
@@ -314,7 +330,7 @@ mod tests {
     fn infix_prefix_expression_2() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 + -2 * 3 - -4", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Constant(2.0),
@@ -332,7 +348,7 @@ mod tests {
     fn infix_prefix_expression_3() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("-1 + 2 * -3 - 4", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Negate,
@@ -350,7 +366,7 @@ mod tests {
     fn paren_expression_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("(1)", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
         ]);
@@ -360,7 +376,7 @@ mod tests {
     fn paren_expression_2() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("(((((1)))))", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
         ]);
@@ -370,7 +386,7 @@ mod tests {
     fn paren_expression_3() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("(1 + 2) * 3", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Constant(2.0),
@@ -384,7 +400,7 @@ mod tests {
     fn paren_expression_4() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 / 2 * (3 - 4) + 5", &mut code);
-        parser.parse();
+        parser.expr_bp(0);
         assert_eq!(code, vec![
             Code::Constant(1.0),
             Code::Constant(2.0),
@@ -395,6 +411,29 @@ mod tests {
             Code::Multiply,
             Code::Constant(5.0),
             Code::Add,
+        ]);
+    }
+
+    #[test]
+    fn let_stmt() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("let name = 1;", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Variable("name"),
+        ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "expect '=' after 'let <name>'")]
+    fn let_stmt_error_1() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("let name 1;", &mut code);
+        parser.parse();
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Variable("name"),
         ]);
     }
 }
