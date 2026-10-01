@@ -83,6 +83,7 @@ impl<'src, 'a> Parser<'src, 'a> {
     fn expr_stmt(&mut self) {
         self.expr_bp(0);
         self.expect(Token::Semicolon(""), "expect ';' after expression");
+        self.emit(Code::Pop);
     }
 
     fn statement(&mut self) {
