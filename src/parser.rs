@@ -62,7 +62,7 @@ impl<'src, 'a> Parser<'src, 'a> {
         self.expect(Token::Equal(""), "expect '=' after 'let <name>'");
         self.expr_bp(0);
         self.expect(Token::Semicolon(""), "expect ';' after initializer expression");
-        self.emit(Code::Variable(match name {
+        self.emit(Code::SetVariable(match name {
             Token::Identifier(lexeme) => lexeme,
             _ => panic!("error"),
         }));
@@ -100,6 +100,10 @@ impl<'src, 'a> Parser<'src, 'a> {
         self.emit(Code::Constant(number));
     }
 
+    fn variable(&mut self, lexeme: &'src str) {
+        self.emit(Code::GetVariable(lexeme));
+    }
+
     fn emit(&mut self, code: Code<'src>) {
         self.code.push(code);
     }
@@ -108,6 +112,7 @@ impl<'src, 'a> Parser<'src, 'a> {
         let token = self.next();
         let _lhs = match token {
             Token::Number(lexeme) => self.number(lexeme),
+            Token::Identifier(lexeme) => self.variable(lexeme),
             Token::Minus(_lexeme) => {
                 let ((), r_bp) = Self::prefix_binding_power(token);
                 self.expr_bp(r_bp);
@@ -364,6 +369,32 @@ mod tests {
     }
 
     #[test]
+    fn variable() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("foo", &mut code);
+        parser.expr_bp(0);
+        assert_eq!(code, vec![Code::GetVariable("foo")]);
+    }
+
+    #[test]
+    fn complex_with_variables() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("-foo + 2 * -bar - 4", &mut code);
+        parser.expr_bp(0);
+        assert_eq!(code, vec![
+            Code::GetVariable("foo"),
+            Code::Negate,
+            Code::Constant(2.0),
+            Code::GetVariable("bar"),
+            Code::Negate,
+            Code::Multiply,
+            Code::Add,
+            Code::Constant(4.0),
+            Code::Subtract,
+        ]);
+    }
+
+    #[test]
     fn paren_expression_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("(1)", &mut code);
@@ -422,7 +453,7 @@ mod tests {
         parser.parse();
         assert_eq!(code, vec![
             Code::Constant(1.0),
-            Code::Variable("name"),
+            Code::SetVariable("name"),
         ]);
     }
 
@@ -434,7 +465,7 @@ mod tests {
         parser.parse();
         assert_eq!(code, vec![
             Code::Constant(1.0),
-            Code::Variable("name"),
+            Code::SetVariable("name"),
         ]);
     }
 }

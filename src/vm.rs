@@ -5,7 +5,8 @@ pub type Num = f64;
 #[derive(Debug, PartialEq)]
 pub enum Code<'a> {
     Constant(Num),
-    Variable(&'a str),
+    SetVariable(&'a str),
+    GetVariable(&'a str),
     Pop,
 
     Add,
@@ -51,9 +52,16 @@ impl VM {
     pub fn run(&mut self, code: &Vec<Code>) {
         for code in code {
             println!("{:?}", code);
-            match code {
-                Code::Constant(i) => self.stack.push(*i),
-                Code::Variable(name) => self.add_var(name.to_string()),
+            match *code {
+                Code::Constant(i) => self.stack.push(i),
+                Code::SetVariable(name) => self.add_var(name.to_string()),
+                Code::GetVariable(name) => {
+                    let var = self.vars.get(name);
+                    match var {
+                        Some(value) => self.stack.push(*value),
+                        None => panic!("'{name}' is undefined"),
+                    }
+                }
                 Code::Pop => { self.pop(); }
                 Code::Add => {
                     let right = self.pop();
@@ -134,15 +142,44 @@ mod tests {
     }
 
     #[test]
-    fn variable() {
-        let mut vars = HashMap::new();
-        vars.insert(String::from("name"), 1.0);
+    fn set_variable() {
+        let vars = HashMap::from([(String::from("name"), 1.0)]);
         let code = vec![
             Code::Constant(1.0),
-            Code::Variable("name"),
+            Code::SetVariable("name"),
         ];
         let mut vm = VM::new();
         vm.run(&code);
         assert_eq!(vm.vars, vars);
+    }
+
+    #[test]
+    #[should_panic(expected = "attemt to redefine 'name'")]
+    fn redefine_variable() {
+        let code = vec![
+            Code::Constant(1.0),
+            Code::SetVariable("name"),
+            Code::Constant(2.0),
+            Code::SetVariable("name"),
+        ];
+        let mut vm = VM::new();
+        vm.run(&code);
+    }
+
+    #[test]
+    fn get_variable() {
+        let mut vm = VM::new();
+        vm.vars.insert(String::from("name"), 10.0);
+        let code = vec![Code::GetVariable("name")];
+        vm.run(&code);
+        assert_eq!(vm.stack, vec![10.0]);
+    }
+
+    #[test]
+    #[should_panic(expected = "'name' is undefined")]
+    fn get_undefined() {
+        let mut vm = VM::new();
+        let code = vec![Code::GetVariable("name")];
+        vm.run(&code);
     }
 }
