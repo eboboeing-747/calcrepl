@@ -8,6 +8,7 @@ enum BindingPower {
     Term = 1,
     Factor = 3,
     Negate = 5,
+    Assignment = 7,
 }
 
 pub struct Parser<'src, 'a> {
@@ -46,10 +47,14 @@ impl<'src, 'a> Parser<'src, 'a> {
         return token;
     }
 
-    fn _match(&mut self, token: Token) -> Token<'src> {
+    fn _match(&mut self, token: Token) -> bool {
         if std::mem::discriminant(&self.peek()) ==
-            std::mem::discriminant(&token) { return self.next(); }
-        return self.peek();
+            std::mem::discriminant(&token)
+        {
+            self.next();
+            return true;
+        }
+        return false;
     }
 
     pub fn parse(&mut self) {
@@ -62,7 +67,7 @@ impl<'src, 'a> Parser<'src, 'a> {
         self.expect(Token::Equal(""), "expect '=' after 'let <name>'");
         self.expr_bp(0);
         self.expect(Token::Semicolon(""), "expect ';' after initializer expression");
-        self.emit(Code::SetVariable(match name {
+        self.emit(Code::NewVariable(match name {
             Token::Identifier(lexeme) => lexeme,
             _ => panic!("error"),
         }));
@@ -100,8 +105,13 @@ impl<'src, 'a> Parser<'src, 'a> {
         self.emit(Code::Constant(number));
     }
 
-    fn variable(&mut self, lexeme: &'src str) {
-        self.emit(Code::GetVariable(lexeme));
+    fn variable(&mut self, lexeme: &'src str, can_assign: bool) {
+        if can_assign && self._match(Token::Equal("")) {
+            self.expr_bp(BindingPower::Assignment as u8);
+            self.emit(Code::SetVariable(lexeme));
+        } else {
+            self.emit(Code::GetVariable(lexeme));
+        }
     }
 
     fn emit(&mut self, code: Code<'src>) {
@@ -109,10 +119,11 @@ impl<'src, 'a> Parser<'src, 'a> {
     }
 
     fn expr_bp(&mut self, min_bp: u8) {
+        let can_assign = min_bp < BindingPower::Assignment as u8;
         let token = self.next();
         let _lhs = match token {
             Token::Number(lexeme) => self.number(lexeme),
-            Token::Identifier(lexeme) => self.variable(lexeme),
+            Token::Identifier(lexeme) => self.variable(lexeme, can_assign),
             Token::Minus(_lexeme) => {
                 let ((), r_bp) = Self::prefix_binding_power(token);
                 self.expr_bp(r_bp);
@@ -127,9 +138,8 @@ impl<'src, 'a> Parser<'src, 'a> {
 
         loop {
             let op = match self.peek() {
-                Token::Eof => break,
-                Token::RightParen(_lexeme) => break,
-                Token::Semicolon(_lexeme) => break,
+                Token::Eof | Token::RightParen(_) |
+                    Token::Semicolon(_) | Token::Equal(_) => break,
                 Token::Number(_lexeme) =>
                     panic!("expected Operator, got {token} instead"),
                 Token::Error(_lexeme) =>
@@ -150,6 +160,10 @@ impl<'src, 'a> Parser<'src, 'a> {
                 _ => panic!("parsing error"),
             }
         }
+
+        if can_assign && self._match(Token::Equal("")) {
+            panic!("invalid assignment target");
+        }
     }
 
     fn prefix_binding_power(op: Token) -> ((), u8) { 
@@ -161,10 +175,12 @@ impl<'src, 'a> Parser<'src, 'a> {
 
     fn infix_binding_power(op: Token) -> (u8, u8) {
         let bp = match op {
-            Token::Plus(_lexeme) => BindingPower::Term,
-            Token::Minus(_lexeme) => BindingPower::Term,
-            Token::Star(_lexeme) => BindingPower::Factor,
-            Token::Slash(_lexeme) => BindingPower::Factor,
+            Token::Plus(_) => BindingPower::Term,
+            Token::Minus(_) => BindingPower::Term,
+            Token::Star(_) => BindingPower::Factor,
+            Token::Slash(_) => BindingPower::Factor,
+            Token::Equal(_) => return (BindingPower::Assignment as u8 + 1,
+                BindingPower::Assignment as u8),
             t => panic!("unknown operator '{}'", t),
         };
 
@@ -207,6 +223,19 @@ mod tests {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("+", &mut code);
         parser.expect(Token::Plus("anything"), "expect operator");
+    }
+
+    #[test]
+    fn _match() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1234 + name", &mut code);
+        assert_eq!(parser._match(Token::Number("anything")), true);
+        assert_eq!(parser.peek(), Token::Plus("+"));
+        assert_eq!(parser._match(Token::Slash("anything")), false);
+        assert_eq!(parser.peek(), Token::Plus("+"));
+        assert_eq!(parser._match(Token::Plus("anything")), true);
+        assert_eq!(parser._match(Token::Identifier("anything")), true);
+        assert_eq!(parser._match(Token::Eof), true);
     }
 
     #[test]
@@ -447,13 +476,63 @@ mod tests {
     }
 
     #[test]
+    fn assignment_1() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("foo = 5", &mut code);
+        parser.expr_bp(0);
+        assert_eq!(code, vec![
+            Code::Constant(5.0),
+            Code::SetVariable("foo"),
+        ]);
+    }
+
+    #[test]
+    fn assignment_2() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("foo = 1 - 2 / 3", &mut code);
+        parser.expr_bp(0);
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Constant(3.0),
+            Code::Divide,
+            Code::Subtract,
+            Code::SetVariable("foo"),
+        ]);
+    }
+
+    #[test]
+    fn assignment_3() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("foo = 1 - (bar = 2 / 3)", &mut code);
+        parser.expr_bp(0);
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::Constant(2.0),
+            Code::Constant(3.0),
+            Code::Divide,
+            Code::SetVariable("bar"),
+            Code::Subtract,
+            Code::SetVariable("foo"),
+        ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid assignment target")]
+    fn assignment_4() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 - foo = 2", &mut code);
+        parser.expr_bp(0);
+    }
+
+    #[test]
     fn let_stmt() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("let name = 1;", &mut code);
         parser.parse();
         assert_eq!(code, vec![
             Code::Constant(1.0),
-            Code::SetVariable("name"),
+            Code::NewVariable("name"),
         ]);
     }
 
@@ -465,7 +544,7 @@ mod tests {
         parser.parse();
         assert_eq!(code, vec![
             Code::Constant(1.0),
-            Code::SetVariable("name"),
+            Code::NewVariable("name"),
         ]);
     }
 }
