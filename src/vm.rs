@@ -5,6 +5,7 @@ pub type Num = f64;
 #[derive(Debug, PartialEq)]
 pub enum Code<'a> {
     Constant(Num),
+    NewVariable(&'a str),
     SetVariable(&'a str),
     GetVariable(&'a str),
     Pop,
@@ -38,10 +39,23 @@ impl VM {
     // }
 
     fn add_var(&mut self, name: String) {
-        let value = self.pop();
+        let value = self.peek();
         if self.vars.contains_key(&name)
             { panic!("attemt to redefine '{name}'"); }
         self.vars.insert(name, value);
+    }
+
+    fn set_var(&mut self, name: &str) {
+        let new_value = self.peek();
+        let var = self.vars.get_mut(name);
+        match var {
+            Some(value) => *value = new_value,
+            None => panic!("'{name}' is undefined"),
+        }
+    }
+
+    fn peek(&self) -> Num {
+        return self.stack[self.stack.len() - 1];
     }
 
     fn pop(&mut self) -> Num {
@@ -54,7 +68,8 @@ impl VM {
             println!("{:?}", code);
             match *code {
                 Code::Constant(i) => self.stack.push(i),
-                Code::SetVariable(name) => self.add_var(name.to_string()),
+                Code::NewVariable(name) => self.add_var(name.to_string()),
+                Code::SetVariable(name) => self.set_var(name),
                 Code::GetVariable(name) => {
                     let var = self.vars.get(name);
                     match var {
@@ -142,11 +157,11 @@ mod tests {
     }
 
     #[test]
-    fn set_variable() {
+    fn new_variable() {
         let vars = HashMap::from([(String::from("name"), 1.0)]);
         let code = vec![
             Code::Constant(1.0),
-            Code::SetVariable("name"),
+            Code::NewVariable("name"),
         ];
         let mut vm = VM::new();
         vm.run(&code);
@@ -158,11 +173,29 @@ mod tests {
     fn redefine_variable() {
         let code = vec![
             Code::Constant(1.0),
-            Code::SetVariable("name"),
+            Code::NewVariable("name"),
             Code::Constant(2.0),
-            Code::SetVariable("name"),
+            Code::NewVariable("name"),
         ];
         let mut vm = VM::new();
+        vm.run(&code);
+    }
+
+    #[test]
+    fn set_variable() {
+        let mut vm = VM::new();
+        vm.vars.insert(String::from("name"), 10.0);
+        let code = vec![Code::Constant(1.0), Code::SetVariable("name")];
+        vm.run(&code);
+        assert_eq!(*vm.vars.get("name").unwrap(), 1.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "'name' is undefined")]
+    fn set_undefined() {
+        let mut vm = VM::new();
+        vm.vars.insert(String::from("foo"), 10.0);
+        let code = vec![Code::Constant(1.0), Code::SetVariable("name")];
         vm.run(&code);
     }
 
