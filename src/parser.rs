@@ -1,14 +1,13 @@
-use core::panic;
 use crate::tokenizer::Tokenizer;
 use crate::token::Token;
 use crate::vm::{ Num, Code };
 
 #[derive(Clone, Copy)]
 enum BindingPower {
-    Term = 1,
-    Factor = 3,
-    Negate = 5,
-    Assignment = 7,
+    Assignment = 1,
+    Term = 3,
+    Factor = 5,
+    Negate = 7,
 }
 
 pub struct Parser<'src, 'a> {
@@ -119,7 +118,7 @@ impl<'src, 'a> Parser<'src, 'a> {
     }
 
     fn expr_bp(&mut self, min_bp: u8) {
-        let can_assign = min_bp < BindingPower::Assignment as u8;
+        let can_assign = min_bp <= BindingPower::Assignment as u8;
         let token = self.next();
         let _lhs = match token {
             Token::Number(lexeme) => self.number(lexeme),
@@ -518,8 +517,29 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "invalid assignment target")]
     fn assignment_4() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("foo = bar = baz = 1", &mut code);
+        parser.expr_bp(0);
+        assert_eq!(code, vec![
+            Code::Constant(1.0),
+            Code::SetVariable("baz"),
+            Code::SetVariable("bar"),
+            Code::SetVariable("foo"),
+        ]);
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid assignment target")]
+    fn assignment_5() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("foo = 1 - bar = 2 / 3", &mut code);
+        parser.expr_bp(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid assignment target")]
+    fn assignment_invalid() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 - foo = 2", &mut code);
         parser.expr_bp(0);

@@ -45,8 +45,13 @@ impl VM {
         self.vars.insert(name, value);
     }
 
-    fn set_var(&self, name: &str) {
-        todo!();
+    fn set_var(&mut self, name: &str) {
+        let new_value = self.peek();
+        let var = self.vars.get_mut(name);
+        match var {
+            Some(value) => *value = new_value,
+            None => panic!("'{name}' is undefined"),
+        }
     }
 
     fn peek(&self) -> Num {
