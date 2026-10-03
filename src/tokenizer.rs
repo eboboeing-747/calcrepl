@@ -42,7 +42,7 @@ impl<'a> Tokenizer<'a> {
                 Some(c) => c,
                 None => break,
             };
-            if c == ' ' {
+            if c == ' ' || c == '\n' {
                 self.advance();
                 continue;
             }
@@ -66,6 +66,15 @@ impl<'a> Tokenizer<'a> {
         return Token::Number(self.lexeme());
     }
 
+    fn identifier(&mut self) -> Token<'a> {
+        loop {
+            let c = self.peek().unwrap_or('\0');
+            if !(c.is_alphabetic() || c.is_numeric() || c == '_') { break; }
+            self.advance();
+        }
+        return Token::Identifier(self.lexeme());
+    }
+
     fn lexeme(&mut self) -> &'a str {
         return &self.source_file[self.start..self.current];
     }
@@ -82,13 +91,19 @@ impl<'a> Tokenizer<'a> {
             return self.number();
         }
 
+        if c.is_alphabetic() || c == '_' {
+            return self.identifier();
+        }
+
         return match c {
-            '+' => Token::Plus(self.lexeme()),
-            '-' => Token::Minus(self.lexeme()),
-            '*' => Token::Star(self.lexeme()),
-            '/' => Token::Slash(self.lexeme()),
             '(' => Token::LeftParen(self.lexeme()),
             ')' => Token::RightParen(self.lexeme()),
+            '*' => Token::Star(self.lexeme()),
+            '+' => Token::Plus(self.lexeme()),
+            '-' => Token::Minus(self.lexeme()),
+            '/' => Token::Slash(self.lexeme()),
+            ';' => Token::Semicolon(self.lexeme()),
+            '=' => Token::Equal(self.lexeme()),
             _ => Token::Error(self.lexeme()),
         }
     }
@@ -118,19 +133,31 @@ mod tests {
     }
 
     #[test]
-    fn single_whitespace_string() {
+    fn whitespace_endline() {
         assert_eq!(
             vec![Token::Eof],
             vectorize(" "),
         );
-    }
 
-    #[test]
-    fn long_whitespace_string() {
         assert_eq!(
             vec![Token::Eof],
             vectorize("         "),
-        )
+        );
+
+        assert_eq!(
+            vec![Token::Eof],
+            vectorize("\n"),
+        );
+
+        assert_eq!(
+            vec![Token::Eof],
+            vectorize("     \n"),
+        );
+
+        assert_eq!(
+            vec![Token::Number("1"), Token::Eof,],
+            vectorize("\n1"),
+        );
     }
 
     #[test]
@@ -276,6 +303,73 @@ mod tests {
                 Token::Eof,
             ],
             vectorize("9888."),
+        );
+    }
+
+    #[test]
+    fn identifier() {
+        assert_eq!(
+            vec![
+                Token::Identifier("a"),
+                Token::Eof,
+            ],
+            vectorize("a"),
+        );
+
+        assert_eq!(
+            vec![
+                Token::Identifier("AnyAlphaSequnce"),
+                Token::Eof,
+            ],
+            vectorize("AnyAlphaSequnce"),
+        );
+
+        assert_eq!(
+            vec![
+                Token::Identifier("_Alpha2345_Numeric123423"),
+                Token::Eof,
+            ],
+            vectorize("_Alpha2345_Numeric123423"),
+        );
+    }
+
+    #[test]
+    fn number_identifier() {
+        assert_eq!(
+            vec![
+                Token::Number("1234"),
+                Token::Identifier("a1234"),
+                Token::Eof,
+            ],
+            vectorize("1234a1234"),
+        );
+
+        assert_eq!(
+            vec![
+                Token::Number("1234"),
+                Token::Identifier("_identifier1"),
+                Token::Minus("-"),
+                Token::Number("4321"),
+                Token::Eof,
+            ],
+            vectorize("1234_identifier1-4321"),
+        );
+    }
+
+    #[test]
+    fn identifier_expression() {
+        assert_eq!(
+            vec![
+                Token::Number("123"),
+                Token::Plus("+"),
+                Token::Identifier("num_1"),
+                Token::Slash("/"),
+                Token::Identifier("_foo"),
+                Token::Star("*"),
+                Token::Identifier("Bar_baz_123"),
+                Token::Eof,
+            ],
+            vectorize("123 + num_1 / _foo * Bar_baz_123"),
         );
     }
 }
