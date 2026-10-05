@@ -1,24 +1,26 @@
 # calcrepl
 
-A simple statement parsing loop. Expressions are implemented using Pratt parsing. Main goals of the project were learning this algorithm and peeking at rust lifetimes.
+A simple statement parsing loop. Expressions are implemented using Pratt parsing. Main goals of the project were learning this algorithm and peeking at rust lifetimes.\
 My main learning resource was [this article](https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html).
 
 ## EBNF ([wikipedia](https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form))
 
 ```
-script = { let_stmt | info_stmt | exit_stmt | expr_stmt } EOF ;
+script = { let-stmt | info-stmt | exit-stmt | expr-stmt } EOF ;
 
-expr_stmt = expression ";" ;
-let_stmt = "let" "=" expression ";" ;
-info_stmt = "info" ";" ;
-exit_stmt = "exit" ";" ;
+expr-stmt = expression ";" ;
+let-stmt = "let" identifier "=" expression ";" ;
+info-stmt = "info" ";" ;
+exit-stmt = "exit" ";" ;
 
 expression = assignment ;
 assignment = ( identifier "=" assignment ) | term ;
 term = factor { ( "+" | "-" ) factor } ;
 factor = unary { ( "*" | "/" ) unary } ;
-unary =  "!" ( unary | primary ) ;
+unary =  "-" ( unary | primary ) ;
 primary = number | identifier | "(" expression ")" ;
+
+identifier = ( letter | "_" ) { digit | letter | "_" } ;
 ```
 
 Expressions are just your avarage arithmetical expressions with regular operator precedence.
