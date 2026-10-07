@@ -28,5 +28,5 @@ Expressions are just your avarage arithmetical expressions with regular operator
 ## Roadmap
 - [x] statements
 - [x] global variables
-- [ ] statement parsing loop (parse more than one line at once)
+- [x] statement parsing loop (parse more than one line at once)
 - [ ] error recovery (not panic on every error)

@@ -57,15 +57,19 @@ impl<'src, 'a> Parser<'src, 'a> {
     }
 
     pub fn parse(&mut self) {
-        self.statement();
+        while self.peek() != Token::Eof {
+            self.statement();
+        }
     }
 
     fn let_stmt(&mut self) {
         self.next();
-        let name = self.expect(Token::Identifier(""), "expect identifier after 'let'");
+        let name = self.expect(Token::Identifier(""),
+            "expect identifier after 'let'");
         self.expect(Token::Equal(""), "expect '=' after 'let <name>'");
         self.expr_bp(0);
-        self.expect(Token::Semicolon(""), "expect ';' after initializer expression");
+        self.expect(Token::Semicolon(""),
+            "expect ';' after initializer expression");
         self.emit(Code::NewVariable(match name {
             Token::Identifier(lexeme) => lexeme,
             _ => panic!("error"),
