@@ -36,7 +36,7 @@ impl<'a> Tokenizer<'a> {
         return Some(c);
     }
 
-    fn skip_whitespace(&mut self) -> () {
+    fn skip_whitespace(&mut self) {
         loop {
             let c = match self.peek() {
                 Some(c) => c,

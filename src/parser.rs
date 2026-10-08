@@ -1,3 +1,5 @@
+use std::mem::discriminant;
+
 use crate::tokenizer::Tokenizer;
 use crate::token::Token;
 use crate::vm::{ Num, Code };
@@ -11,6 +13,8 @@ enum BindingPower {
 }
 
 pub struct Parser<'src, 'a> {
+    has_error: bool,
+    had_error: bool,
     tokenizer: Tokenizer<'src>,
     code: &'a mut Vec<Code<'src>>,
     current: Token<'src>,
@@ -22,11 +26,22 @@ impl<'src, 'a> Parser<'src, 'a> {
         let mut tokenizer = Tokenizer::new(input);
         let token = tokenizer.scan_token();
         return Parser {
+            has_error: false,
+            had_error: false,
             tokenizer: tokenizer,
             code: code,
             current: token,
             previous: Token::Eof,
         };
+    }
+
+    fn error(&mut self, message: String) {
+        self.had_error = true;
+
+        if !self.has_error {
+            self.has_error = true;
+            println!("{message}");
+        }
     }
 
     fn next(&mut self) -> Token<'src> {
@@ -41,25 +56,26 @@ impl<'src, 'a> Parser<'src, 'a> {
 
     fn expect(&mut self, expected: Token, message: &'static str) -> Token<'src> {
         let token = self.next();
-        if std::mem::discriminant(&token) != std::mem::discriminant(&expected)
-            { panic!("{message}"); }
+        if discriminant(&token) != discriminant(&expected) {
+            self.error(message.to_string());
+        }
         return token;
     }
 
     fn _match(&mut self, token: Token) -> bool {
-        if std::mem::discriminant(&self.peek()) ==
-            std::mem::discriminant(&token)
-        {
+        if discriminant(&self.peek()) == discriminant(&token) {
             self.next();
             return true;
         }
         return false;
     }
 
-    pub fn parse(&mut self) {
+    pub fn parse(&mut self) -> bool {
         while self.peek() != Token::Eof {
             self.statement();
         }
+
+        return self.had_error;
     }
 
     fn let_stmt(&mut self) {
@@ -72,7 +88,7 @@ impl<'src, 'a> Parser<'src, 'a> {
             "expect ';' after initializer expression");
         self.emit(Code::NewVariable(match name {
             Token::Identifier(lexeme) => lexeme,
-            _ => panic!("error"),
+            _ => panic!("unreachable path reached"),
         }));
     }
 
@@ -134,20 +150,24 @@ impl<'src, 'a> Parser<'src, 'a> {
             }
             Token::LeftParen(_lexeme) => {
                 self.expr_bp(0);
-                assert_eq!(self.next(), Token::RightParen(")"));
+                self.expect(Token::RightParen(""),
+                    "unterminated grouping expression");
             }
-            t => panic!("expected Token::Number, got {} instead", t),
+            t => self.error(format!(
+                "expected Token::Number, got {} instead", t)),
         };
 
         loop {
             let op = match self.peek() {
                 Token::Eof | Token::RightParen(_) |
                     Token::Semicolon(_) | Token::Equal(_) => break,
-                Token::Number(_lexeme) =>
-                    panic!("expected Operator, got {token} instead"),
-                Token::Error(_lexeme) =>
-                    panic!("expected Operator, got {token} instead"),
-                t => t,
+                valid @ (Token::Plus(_) | Token::Minus(_) |
+                    Token::Star(_) | Token::Slash(_)) => valid,
+                invalid @ _ => {
+                    self.error(format!("expected Operator, got {} instead",
+                        invalid));
+                    return;
+                }
             };
 
             let (l_bp, r_bp) = Self::infix_binding_power(op);
@@ -160,19 +180,19 @@ impl<'src, 'a> Parser<'src, 'a> {
                 Token::Minus(_lexeme) => self.emit(Code::Subtract),
                 Token::Star(_lexeme) => self.emit(Code::Multiply),
                 Token::Slash(_lexeme) => self.emit(Code::Divide),
-                _ => panic!("parsing error"),
+                _ => panic!("unreachable path reached"),
             }
         }
 
         if can_assign && self._match(Token::Equal("")) {
-            panic!("invalid assignment target");
+            self.error("invalid assignment target".to_string());
         }
     }
 
     fn prefix_binding_power(op: Token) -> ((), u8) { 
         match op {
             Token::Minus(_lexeme) => ((), BindingPower::Negate as u8),
-            _ => panic!("bad op: {:?}", op),
+            _ => panic!("unknown prefix operator: '{:?}'", op),
         }
     }
 
@@ -184,7 +204,7 @@ impl<'src, 'a> Parser<'src, 'a> {
             Token::Slash(_) => BindingPower::Factor,
             Token::Equal(_) => return (BindingPower::Assignment as u8 + 1,
                 BindingPower::Assignment as u8),
-            t => panic!("unknown operator '{}'", t),
+            _ => panic!("unknown infix operator '{:?}'", op),
         };
 
         return (bp as u8, bp as u8 + 1);
@@ -213,6 +233,7 @@ mod tests {
         assert_eq!(parser.next(), Token::Eof);
     }
 
+    // TODO: fix test
     #[test]
     #[should_panic(expected = "expect identifier")]
     fn expect_1() {
@@ -533,6 +554,7 @@ mod tests {
         ]);
     }
 
+    // TODO: fix test
     #[test]
     #[should_panic(expected = "invalid assignment target")]
     fn assignment_5() {
@@ -541,6 +563,7 @@ mod tests {
         parser.expr_bp(0);
     }
 
+    // TODO: fix test
     #[test]
     #[should_panic(expected = "invalid assignment target")]
     fn assignment_invalid() {
@@ -560,6 +583,7 @@ mod tests {
         ]);
     }
 
+    // TODO: fix test
     #[test]
     #[should_panic(expected = "expect '=' after 'let <name>'")]
     fn let_stmt_error_1() {
