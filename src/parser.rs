@@ -70,6 +70,17 @@ impl<'src, 'a> Parser<'src, 'a> {
         return false;
     }
 
+    fn syncronize(&mut self) {
+        self.has_error = false;
+
+        loop {
+            match self.next() {
+                Token::Semicolon(_) | Token::Eof => break,
+                _ => continue,
+            }
+        }
+    }
+
     pub fn parse(&mut self) -> bool {
         while self.peek() != Token::Eof {
             self.statement();
@@ -117,6 +128,8 @@ impl<'src, 'a> Parser<'src, 'a> {
             Token::Identifier("exit") => self.exit_stmt(),
             _ => self.expr_stmt(),
         }
+
+        if self.has_error { self.syncronize(); }
     }
 
     fn number(&mut self, lexeme: &str) {
@@ -154,7 +167,7 @@ impl<'src, 'a> Parser<'src, 'a> {
                     "unterminated grouping expression");
             }
             t => self.error(format!(
-                "expected Token::Number, got {} instead", t)),
+                "expect number, got {:?} instead", t)),
         };
 
         loop {
@@ -164,7 +177,7 @@ impl<'src, 'a> Parser<'src, 'a> {
                 valid @ (Token::Plus(_) | Token::Minus(_) |
                     Token::Star(_) | Token::Slash(_)) => valid,
                 invalid @ _ => {
-                    self.error(format!("expected Operator, got {} instead",
+                    self.error(format!("expect operator, got {:?} instead",
                         invalid));
                     return;
                 }
@@ -594,5 +607,38 @@ mod tests {
             Code::Constant(1.0),
             Code::NewVariable("name"),
         ]);
+    }
+
+    #[test]
+    fn syncronize() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 / 2; 3 + 4;", &mut code);
+        parser.next();
+        parser.syncronize();
+        assert_eq!(parser.peek(), Token::Number("3"));
+
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 / / 3 * 4", &mut code);
+        parser.expr_bp(0);
+        parser.syncronize();
+        assert_eq!(parser.peek(), Token::Eof);
+
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 / / 3 * 4;", &mut code);
+        parser.expr_bp(0);
+        parser.syncronize();
+        assert_eq!(parser.peek(), Token::Eof);
+
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 / / 3 * 4;\nfoo = bar;", &mut code);
+        parser.expr_bp(0);
+        parser.syncronize();
+        assert_eq!(parser.peek(), Token::Identifier("foo"));
+
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 / / 3 * 4;\nfoo = bar;", &mut code);
+        parser.parse();
+        assert_eq!(parser.previous, Token::Semicolon(";"));
+        assert_eq!(parser.peek(), Token::Eof);
     }
 }
