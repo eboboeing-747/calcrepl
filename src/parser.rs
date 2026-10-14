@@ -1,3 +1,5 @@
+use std::mem::discriminant;
+
 use crate::tokenizer::Tokenizer;
 use crate::token::Token;
 use crate::vm::{ Num, Code };
@@ -11,6 +13,8 @@ enum BindingPower {
 }
 
 pub struct Parser<'src, 'a> {
+    error: Option<String>,
+    had_error: bool,
     tokenizer: Tokenizer<'src>,
     code: &'a mut Vec<Code<'src>>,
     current: Token<'src>,
@@ -22,11 +26,25 @@ impl<'src, 'a> Parser<'src, 'a> {
         let mut tokenizer = Tokenizer::new(input);
         let token = tokenizer.scan_token();
         return Parser {
+            error: None,
+            had_error: false,
             tokenizer: tokenizer,
             code: code,
             current: token,
             previous: Token::Eof,
         };
+    }
+
+    fn error(&mut self, message: String) {
+        self.had_error = true;
+
+        match self.error {
+            None => {
+                println!("{}", &message);
+                self.error = Some(message);
+            }
+            Some(_) => (),
+        }
     }
 
     fn next(&mut self) -> Token<'src> {
@@ -41,25 +59,37 @@ impl<'src, 'a> Parser<'src, 'a> {
 
     fn expect(&mut self, expected: Token, message: &'static str) -> Token<'src> {
         let token = self.next();
-        if std::mem::discriminant(&token) != std::mem::discriminant(&expected)
-            { panic!("{message}"); }
+        if discriminant(&token) != discriminant(&expected) {
+            self.error(message.to_string());
+        }
         return token;
     }
 
     fn _match(&mut self, token: Token) -> bool {
-        if std::mem::discriminant(&self.peek()) ==
-            std::mem::discriminant(&token)
-        {
+        if discriminant(&self.peek()) == discriminant(&token) {
             self.next();
             return true;
         }
         return false;
     }
 
-    pub fn parse(&mut self) {
+    fn syncronize(&mut self) {
+        self.error = None;
+
+        loop {
+            match self.next() {
+                Token::Semicolon(_) | Token::Eof => break,
+                _ => continue,
+            }
+        }
+    }
+
+    pub fn parse(&mut self) -> bool {
         while self.peek() != Token::Eof {
             self.statement();
         }
+
+        return self.had_error;
     }
 
     fn let_stmt(&mut self) {
@@ -72,7 +102,7 @@ impl<'src, 'a> Parser<'src, 'a> {
             "expect ';' after initializer expression");
         self.emit(Code::NewVariable(match name {
             Token::Identifier(lexeme) => lexeme,
-            _ => panic!("error"),
+            _ => panic!("unreachable path reached"),
         }));
     }
 
@@ -100,6 +130,11 @@ impl<'src, 'a> Parser<'src, 'a> {
             Token::Identifier("info") => self.info_stmt(),
             Token::Identifier("exit") => self.exit_stmt(),
             _ => self.expr_stmt(),
+        }
+
+        match self.error {
+            None => (),
+            Some(_) => self.syncronize(),
         }
     }
 
@@ -134,20 +169,24 @@ impl<'src, 'a> Parser<'src, 'a> {
             }
             Token::LeftParen(_lexeme) => {
                 self.expr_bp(0);
-                assert_eq!(self.next(), Token::RightParen(")"));
+                self.expect(Token::RightParen(""),
+                    "unterminated grouping expression");
             }
-            t => panic!("expected Token::Number, got {} instead", t),
+            t => self.error(format!(
+                "expect number, got {:?} instead", t)),
         };
 
         loop {
             let op = match self.peek() {
                 Token::Eof | Token::RightParen(_) |
                     Token::Semicolon(_) | Token::Equal(_) => break,
-                Token::Number(_lexeme) =>
-                    panic!("expected Operator, got {token} instead"),
-                Token::Error(_lexeme) =>
-                    panic!("expected Operator, got {token} instead"),
-                t => t,
+                valid @ (Token::Plus(_) | Token::Minus(_) |
+                    Token::Star(_) | Token::Slash(_)) => valid,
+                invalid @ _ => {
+                    self.error(format!("expect operator, got {:?} instead",
+                        invalid));
+                    return;
+                }
             };
 
             let (l_bp, r_bp) = Self::infix_binding_power(op);
@@ -160,19 +199,19 @@ impl<'src, 'a> Parser<'src, 'a> {
                 Token::Minus(_lexeme) => self.emit(Code::Subtract),
                 Token::Star(_lexeme) => self.emit(Code::Multiply),
                 Token::Slash(_lexeme) => self.emit(Code::Divide),
-                _ => panic!("parsing error"),
+                _ => panic!("unreachable path reached"),
             }
         }
 
         if can_assign && self._match(Token::Equal("")) {
-            panic!("invalid assignment target");
+            self.error("invalid assignment target".to_string());
         }
     }
 
     fn prefix_binding_power(op: Token) -> ((), u8) { 
         match op {
             Token::Minus(_lexeme) => ((), BindingPower::Negate as u8),
-            _ => panic!("bad op: {:?}", op),
+            _ => panic!("unknown prefix operator: '{:?}'", op),
         }
     }
 
@@ -184,7 +223,7 @@ impl<'src, 'a> Parser<'src, 'a> {
             Token::Slash(_) => BindingPower::Factor,
             Token::Equal(_) => return (BindingPower::Assignment as u8 + 1,
                 BindingPower::Assignment as u8),
-            t => panic!("unknown operator '{}'", t),
+            _ => panic!("unknown infix operator '{:?}'", op),
         };
 
         return (bp as u8, bp as u8 + 1);
@@ -214,11 +253,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "expect identifier")]
     fn expect_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("+", &mut code);
         parser.expect(Token::Identifier("anything"), "expect identifier");
+        assert_eq!(parser.error, Some("expect identifier".to_string()));
     }
 
     #[test]
@@ -534,19 +573,19 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "invalid assignment target")]
     fn assignment_5() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("foo = 1 - bar = 2 / 3", &mut code);
         parser.expr_bp(0);
+        assert_eq!(parser.error, Some("invalid assignment target".to_string()));
     }
 
     #[test]
-    #[should_panic(expected = "invalid assignment target")]
     fn assignment_invalid() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 - foo = 2", &mut code);
         parser.expr_bp(0);
+        assert_eq!(parser.error, Some("invalid assignment target".to_string()));
     }
 
     #[test]
@@ -561,14 +600,43 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "expect '=' after 'let <name>'")]
     fn let_stmt_error_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("let name 1;", &mut code);
+        parser.let_stmt();
+        assert_eq!(parser.error, Some("expect '=' after 'let <name>'".to_string()));
+    }
+
+    #[test]
+    fn syncronize() {
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 / 2; 3 + 4;", &mut code);
+        parser.next();
+        parser.syncronize();
+        assert_eq!(parser.peek(), Token::Number("3"));
+
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 / / 3 * 4", &mut code);
+        parser.expr_bp(0);
+        parser.syncronize();
+        assert_eq!(parser.peek(), Token::Eof);
+
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 / / 3 * 4;", &mut code);
+        parser.expr_bp(0);
+        parser.syncronize();
+        assert_eq!(parser.peek(), Token::Eof);
+
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 / / 3 * 4;\nfoo = bar;", &mut code);
+        parser.expr_bp(0);
+        parser.syncronize();
+        assert_eq!(parser.peek(), Token::Identifier("foo"));
+
+        let mut code: Vec<Code> = Vec::new();
+        let mut parser = Parser::new("1 + 2 / / 3 * 4;\nfoo = bar;", &mut code);
         parser.parse();
-        assert_eq!(code, vec![
-            Code::Constant(1.0),
-            Code::NewVariable("name"),
-        ]);
+        assert_eq!(parser.previous, Token::Semicolon(";"));
+        assert_eq!(parser.peek(), Token::Eof);
     }
 }

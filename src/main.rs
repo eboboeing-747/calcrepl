@@ -17,8 +17,8 @@ fn main() {
         let mut code: Vec<Code> = Vec::new();
 
         let mut parser = Parser::new(&line, &mut code);
-        parser.parse();
+        let had_error = parser.parse();
 
-        vm.run(&code);
+        if !had_error { vm.run(&code); }
     }
 }
