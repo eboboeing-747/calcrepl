@@ -13,7 +13,7 @@ enum BindingPower {
 }
 
 pub struct Parser<'src, 'a> {
-    has_error: bool,
+    error: Option<String>,
     had_error: bool,
     tokenizer: Tokenizer<'src>,
     code: &'a mut Vec<Code<'src>>,
@@ -26,7 +26,7 @@ impl<'src, 'a> Parser<'src, 'a> {
         let mut tokenizer = Tokenizer::new(input);
         let token = tokenizer.scan_token();
         return Parser {
-            has_error: false,
+            error: None,
             had_error: false,
             tokenizer: tokenizer,
             code: code,
@@ -38,9 +38,12 @@ impl<'src, 'a> Parser<'src, 'a> {
     fn error(&mut self, message: String) {
         self.had_error = true;
 
-        if !self.has_error {
-            self.has_error = true;
-            println!("{message}");
+        match self.error {
+            None => {
+                println!("{}", &message);
+                self.error = Some(message);
+            }
+            Some(_) => (),
         }
     }
 
@@ -71,7 +74,7 @@ impl<'src, 'a> Parser<'src, 'a> {
     }
 
     fn syncronize(&mut self) {
-        self.has_error = false;
+        self.error = None;
 
         loop {
             match self.next() {
@@ -129,7 +132,10 @@ impl<'src, 'a> Parser<'src, 'a> {
             _ => self.expr_stmt(),
         }
 
-        if self.has_error { self.syncronize(); }
+        match self.error {
+            None => (),
+            Some(_) => self.syncronize(),
+        }
     }
 
     fn number(&mut self, lexeme: &str) {
@@ -246,13 +252,12 @@ mod tests {
         assert_eq!(parser.next(), Token::Eof);
     }
 
-    // TODO: fix test
     #[test]
-    #[should_panic(expected = "expect identifier")]
     fn expect_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("+", &mut code);
         parser.expect(Token::Identifier("anything"), "expect identifier");
+        assert_eq!(parser.error, Some("expect identifier".to_string()));
     }
 
     #[test]
@@ -567,22 +572,20 @@ mod tests {
         ]);
     }
 
-    // TODO: fix test
     #[test]
-    #[should_panic(expected = "invalid assignment target")]
     fn assignment_5() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("foo = 1 - bar = 2 / 3", &mut code);
         parser.expr_bp(0);
+        assert_eq!(parser.error, Some("invalid assignment target".to_string()));
     }
 
-    // TODO: fix test
     #[test]
-    #[should_panic(expected = "invalid assignment target")]
     fn assignment_invalid() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 - foo = 2", &mut code);
         parser.expr_bp(0);
+        assert_eq!(parser.error, Some("invalid assignment target".to_string()));
     }
 
     #[test]
@@ -596,17 +599,12 @@ mod tests {
         ]);
     }
 
-    // TODO: fix test
     #[test]
-    #[should_panic(expected = "expect '=' after 'let <name>'")]
     fn let_stmt_error_1() {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("let name 1;", &mut code);
-        parser.parse();
-        assert_eq!(code, vec![
-            Code::Constant(1.0),
-            Code::NewVariable("name"),
-        ]);
+        parser.let_stmt();
+        assert_eq!(parser.error, Some("expect '=' after 'let <name>'".to_string()));
     }
 
     #[test]
