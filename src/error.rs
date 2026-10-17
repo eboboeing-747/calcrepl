@@ -2,6 +2,11 @@ use std::fmt::Display;
 
 use crate::token::Token;
 
+enum Direction {
+    Back,
+    Forth,
+}
+
 pub struct Error<'a> {
     source_file: &'a str,
     token: Token<'a>,
@@ -13,12 +18,41 @@ impl<'a> Error<'a> {
         return Error { source_file, token, message };
     }
 
+    fn offset(&self, direction: Direction) -> usize {
+        return match self.token {
+            Token::Eof => todo!(),
+            Token::Equal(l) | Token::Error(l) | Token::Identifier(l) |
+                Token::LeftParen(l) | Token::Minus(l) | Token::Number(l) |
+                Token::Plus(l) | Token::RightParen(l) | Token::Semicolon(l) |
+                Token::Slash(l) | Token::Star(l) => {
+                let offset =
+                    l.as_ptr() as usize - self.source_file.as_ptr() as usize;
+                match direction {
+                    Direction::Back => offset,
+                    Direction::Forth => offset + l.len(),
+                }
+            }
+        };
+    }
+
     fn back(&self) -> &str {
-        todo!();
+        let offset = self.offset(Direction::Back);
+        let tmpstr = &self.source_file[..offset];
+        let line_start: usize = match tmpstr.rfind('\n') {
+            Some(i) => i + 1,
+            None => 0,
+        };
+        return &self.source_file[line_start..offset];
     }
 
     fn forth(&self) -> &str {
-        todo!();
+        let offset = self.offset(Direction::Forth);
+        let tmpstr = &self.source_file[offset..];
+        let line_end: usize = match tmpstr.find('\n') {
+            Some(i) => offset + i,
+            None => self.source_file.len(),
+        };
+        return &self.source_file[offset..line_end];
     }
 }
 
@@ -31,6 +65,29 @@ impl<'a> Display for Error<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offset() {
+        let src = "111 + 222";
+
+        let token = Token::Number(&src[..3]);
+        assert_eq!(token, Token::Number("111"));
+        let error = Error::new(src, token, String::from(""));
+        assert_eq!(error.offset(Direction::Back), 0);
+        assert_eq!(error.offset(Direction::Forth), 3);
+
+        let token = Token::Plus(&src[4..5]);
+        assert_eq!(token, Token::Plus("+"));
+        let error = Error::new(src, token, String::from(""));
+        assert_eq!(error.offset(Direction::Back), 4);
+        assert_eq!(error.offset(Direction::Forth), 5);
+
+        let token = Token::Number(&src[6..]);
+        assert_eq!(token, Token::Number("222"));
+        let error = Error::new(src, token, String::from(""));
+        assert_eq!(error.offset(Direction::Back), 6);
+        assert_eq!(error.offset(Direction::Forth), 9);
+    }
 
     #[test]
     fn back_no_lf() {
@@ -54,22 +111,25 @@ mod tests {
 
     #[test]
     fn back_lf() {
-        let src = "1 + 2\n3 + 4\n5 + 6";
+        let src = "1 * 2\n3 + 4\n5 * 6";
 
-        let token = Token::Number(&src[7..8]);
+        let token = Token::Number(&src[6..7]);
+        assert_eq!(token, Token::Number("3"));
         let error = Error::new(src, token, String::from(""));
         let back: &str = error.back();
-        assert_eq!(back, &src[7..7]);
+        assert_eq!(back, &src[6..6]);
 
-        let token = Token::Plus(&src[9..10]);
+        let token = Token::Plus(&src[8..9]);
+        assert_eq!(token, Token::Plus("+"));
         let error = Error::new(src, token, String::from(""));
         let back: &str = error.back();
-        assert_eq!(back, &src[7..9]);
+        assert_eq!(back, &src[6..8]);
 
-        let token = Token::Number(&src[11..12]);
+        let token = Token::Number(&src[10..11]);
+        assert_eq!(token, Token::Number("4"));
         let error = Error::new(src, token, String::from(""));
         let back: &str = error.back();
-        assert_eq!(back, &src[7..11]);
+        assert_eq!(back, &src[6..10]);
     }
 
     #[test]
@@ -94,21 +154,24 @@ mod tests {
 
     #[test]
     fn forth_lf() {
-        let src = "1 + 2\n3 + 4\n5 + 6";
+        let src = "1 * 2\n3 + 4\n5 * 6";
 
-        let token = Token::Number(&src[7..8]);
+        let token = Token::Number(&src[6..7]);
+        assert_eq!(token, Token::Number("3"));
         let error = Error::new(src, token, String::from(""));
         let forth: &str = error.forth();
-        assert_eq!(forth, &src[8..12]);
+        assert_eq!(forth, &src[7..11]);
 
-        let token = Token::Plus(&src[9..10]);
+        let token = Token::Plus(&src[8..9]);
+        assert_eq!(token, Token::Plus("+"));
         let error = Error::new(src, token, String::from(""));
         let forth: &str = error.forth();
-        assert_eq!(forth, &src[10..12]);
+        assert_eq!(forth, &src[9..11]);
 
-        let token = Token::Number(&src[11..12]);
+        let token = Token::Number(&src[10..11]);
+        assert_eq!(token, Token::Number("4"));
         let error = Error::new(src, token, String::from(""));
         let forth: &str = error.forth();
-        assert_eq!(forth, &src[12..12]);
+        assert_eq!(forth, &src[11..11]);
     }
 }
