@@ -5,6 +5,7 @@ use crate::token::Token;
 pub struct Tokenizer<'a> {
     start: usize,
     current: usize,
+    line: usize,
     source_file: &'a str,
     chars: Peekable<CharIndices<'a>>,
 }
@@ -14,6 +15,7 @@ impl<'a> Tokenizer<'a> {
         return Tokenizer {
             start: 0,
             current: 0,
+            line: 1,
             source_file,
             chars: source_file.char_indices().peekable(),
         };
@@ -43,6 +45,7 @@ impl<'a> Tokenizer<'a> {
                 None => break,
             };
             if c == ' ' || c == '\n' {
+                if c == '\n' { self.line += 1; }
                 self.advance();
                 continue;
             }
@@ -77,6 +80,10 @@ impl<'a> Tokenizer<'a> {
 
     fn lexeme(&mut self) -> &'a str {
         return &self.source_file[self.start..self.current];
+    }
+
+    pub fn line(&self) -> usize {
+        return self.line;
     }
 
     pub fn scan_token(& mut self) -> Token<'a> {

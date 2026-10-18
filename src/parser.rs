@@ -38,10 +38,10 @@ impl<'src, 'a> Parser<'src, 'a> {
         };
     }
 
-    fn error(&mut self, message: String) {
+    fn error_at(&mut self, token: Token<'src>, message: String) {
         self.had_error = true;
-        let token = self.current;
-        let error = Error::new(self.source_file, token, message);
+        let error = Error::new(
+            self.source_file, token, message, self.tokenizer.line());
 
         match self.error {
             None => {
@@ -50,6 +50,10 @@ impl<'src, 'a> Parser<'src, 'a> {
             }
             Some(_) => (),
         }
+    }
+
+    fn error(&mut self, message: String) {
+        self.error_at(self.current, message);
     }
 
     fn next(&mut self) -> Token<'src> {
@@ -65,7 +69,7 @@ impl<'src, 'a> Parser<'src, 'a> {
     fn expect(&mut self, expected: Token, message: &'static str) -> Token<'src> {
         let token = self.next();
         if discriminant(&token) != discriminant(&expected) {
-            self.error(message.to_string());
+            self.error_at(self.previous, message.to_string());
         }
         return token;
     }
@@ -209,7 +213,7 @@ impl<'src, 'a> Parser<'src, 'a> {
         }
 
         if can_assign && self._match(Token::Equal("")) {
-            self.error("invalid assignment target".to_string());
+            self.error_at(self.previous, "illegal assignment".to_string());
         }
     }
 

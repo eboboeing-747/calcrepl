@@ -1,8 +1,6 @@
 use std::fmt::Display;
 
-use crossterm::cursor::{ self, MoveToColumn };
-use crossterm::execute;
-use std::io::stdout;
+use crossterm::cursor;
 
 use crate::token::Token;
 
@@ -16,11 +14,13 @@ pub struct Error<'a> {
     source_file: &'a str,
     token: Token<'a>,
     message: String,
+    line: usize,
 }
 
 impl<'a> Error<'a> {
-    pub fn new(source_file: &'a str, token: Token<'a>, message: String) -> Self {
-        return Error { source_file, token, message };
+    pub fn new(source_file: &'a str, token: Token<'a>,
+        message: String, line: usize) -> Self {
+        return Error { source_file, token, message, line };
     }
 
     fn offset(&self, direction: Direction) -> usize {
@@ -70,6 +70,7 @@ impl<'a> Display for Error<'a> {
                 Token::Plus(l) | Token::RightParen(l) | Token::Semicolon(l) |
                 Token::Slash(l) | Token::Star(l) => l
         };
+        let _ = write!(f, "{} | ", self.line);
         let _ = write!(f, "{}", self.back());
         let (start_x, _y) = cursor::position()
             .unwrap_or_else(|_| panic!("failed to get cursor position"));
@@ -95,19 +96,19 @@ mod tests {
 
         let token = Token::Number(&src[..3]);
         assert_eq!(token, Token::Number("111"));
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 1);
         assert_eq!(error.offset(Direction::Back), 0);
         assert_eq!(error.offset(Direction::Forth), 3);
 
         let token = Token::Plus(&src[4..5]);
         assert_eq!(token, Token::Plus("+"));
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 1);
         assert_eq!(error.offset(Direction::Back), 4);
         assert_eq!(error.offset(Direction::Forth), 5);
 
         let token = Token::Number(&src[6..]);
         assert_eq!(token, Token::Number("222"));
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 1);
         assert_eq!(error.offset(Direction::Back), 6);
         assert_eq!(error.offset(Direction::Forth), 9);
     }
@@ -117,17 +118,17 @@ mod tests {
         let src = "1 + 2";
 
         let token = Token::Number(&src[0..1]);
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 1);
         let back: &str = error.back();
         assert_eq!(back, &src[..0]);
 
         let token = Token::Plus(&src[2..3]);
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 1);
         let back: &str = error.back();
         assert_eq!(back, &src[..2]);
 
         let token = Token::Number(&src[4..5]);
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 1);
         let back: &str = error.back();
         assert_eq!(back, &src[..4]);
     }
@@ -138,19 +139,19 @@ mod tests {
 
         let token = Token::Number(&src[6..7]);
         assert_eq!(token, Token::Number("3"));
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 2);
         let back: &str = error.back();
         assert_eq!(back, &src[6..6]);
 
         let token = Token::Plus(&src[8..9]);
         assert_eq!(token, Token::Plus("+"));
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 2);
         let back: &str = error.back();
         assert_eq!(back, &src[6..8]);
 
         let token = Token::Number(&src[10..11]);
         assert_eq!(token, Token::Number("4"));
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 2);
         let back: &str = error.back();
         assert_eq!(back, &src[6..10]);
     }
@@ -160,17 +161,17 @@ mod tests {
         let src = "1 + 2";
 
         let token = Token::Number(&src[0..1]);
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 1);
         let forth: &str = error.forth();
         assert_eq!(forth, &src[1..]);
 
         let token = Token::Plus(&src[2..3]);
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 1);
         let forth: &str = error.forth();
         assert_eq!(forth, &src[3..]);
 
         let token = Token::Number(&src[4..5]);
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 1);
         let forth: &str = error.forth();
         assert_eq!(forth, &src[5..]);
     }
@@ -181,19 +182,19 @@ mod tests {
 
         let token = Token::Number(&src[6..7]);
         assert_eq!(token, Token::Number("3"));
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 2);
         let forth: &str = error.forth();
         assert_eq!(forth, &src[7..11]);
 
         let token = Token::Plus(&src[8..9]);
         assert_eq!(token, Token::Plus("+"));
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 2);
         let forth: &str = error.forth();
         assert_eq!(forth, &src[9..11]);
 
         let token = Token::Number(&src[10..11]);
         assert_eq!(token, Token::Number("4"));
-        let error = Error::new(src, token, String::from(""));
+        let error = Error::new(src, token, String::from(""), 2);
         let forth: &str = error.forth();
         assert_eq!(forth, &src[11..11]);
     }
