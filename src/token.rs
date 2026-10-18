@@ -1,6 +1,6 @@
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Token<'a> {
-    Eof,
+    Eof(&'a str),
     Equal(&'a str),
     Error(&'a str),
     Identifier(&'a str),

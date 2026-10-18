@@ -1,5 +1,4 @@
 use std::fmt::Display;
-
 use crossterm::cursor;
 
 use crate::token::Token;
@@ -25,11 +24,10 @@ impl<'a> Error<'a> {
 
     fn offset(&self, direction: Direction) -> usize {
         return match self.token {
-            Token::Eof => todo!(),
-            Token::Equal(l) | Token::Error(l) | Token::Identifier(l) |
-                Token::LeftParen(l) | Token::Minus(l) | Token::Number(l) |
-                Token::Plus(l) | Token::RightParen(l) | Token::Semicolon(l) |
-                Token::Slash(l) | Token::Star(l) => {
+            Token::Eof(l) | Token::Equal(l) | Token::Error(l) |
+                Token::Identifier(l) | Token::LeftParen(l) | Token::Minus(l) |
+                Token::Number(l) | Token::Plus(l) | Token::RightParen(l) |
+                Token::Semicolon(l) | Token::Slash(l) | Token::Star(l) => {
                 let offset =
                     l.as_ptr() as usize - self.source_file.as_ptr() as usize;
                 match direction {
@@ -64,16 +62,16 @@ impl<'a> Error<'a> {
 impl<'a> Display for Error<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let lexeme = match self.token {
-            Token::Eof => todo!(),
-            Token::Equal(l) | Token::Error(l) | Token::Identifier(l) |
-                Token::LeftParen(l) | Token::Minus(l) | Token::Number(l) |
-                Token::Plus(l) | Token::RightParen(l) | Token::Semicolon(l) |
-                Token::Slash(l) | Token::Star(l) => l
+            Token::Eof(l) | Token::Equal(l) | Token::Error(l) |
+                Token::Identifier(l) | Token::LeftParen(l) | Token::Minus(l) |
+                Token::Number(l) | Token::Plus(l) | Token::RightParen(l) |
+                Token::Semicolon(l) | Token::Slash(l) | Token::Star(l) => l,
         };
-        let _ = write!(f, "{} | ", self.line);
-        let _ = write!(f, "{}", self.back());
+
+        let _ = write!(f, " {} | {}", self.line, self.back());
         let (start_x, _y) = cursor::position()
             .unwrap_or_else(|_| panic!("failed to get cursor position"));
+
         let _ = write!(f, "{lexeme}");
         let (end_x, _y) = cursor::position()
             .unwrap_or_else(|_| panic!("failed to get cursor position"));
@@ -81,6 +79,7 @@ impl<'a> Display for Error<'a> {
 
         for _ in 0..start_x { let _ = write!(f, " "); }
         for _ in start_x..end_x { let _ = write!(f, "^"); }
+        if start_x == end_x { let _ = write!(f, "^"); }
 
         return write!(f, " {}", self.message);
     }
@@ -111,6 +110,11 @@ mod tests {
         let error = Error::new(src, token, String::from(""), 1);
         assert_eq!(error.offset(Direction::Back), 6);
         assert_eq!(error.offset(Direction::Forth), 9);
+
+        let token = Token::Eof(&src[9..]);
+        assert_eq!(token, Token::Eof(""));
+        let error = Error::new(src, token, String::from(""), 1);
+        assert_eq!(error.offset(Direction::Back), 9);
     }
 
     #[test]
@@ -131,6 +135,11 @@ mod tests {
         let error = Error::new(src, token, String::from(""), 1);
         let back: &str = error.back();
         assert_eq!(back, &src[..4]);
+
+        let token = Token::Eof(&src[5..5]);
+        let error = Error::new(src, token, String::from(""), 1);
+        let back: &str = error.back();
+        assert_eq!(back, &src[..5]);
     }
 
     #[test]
@@ -154,6 +163,12 @@ mod tests {
         let error = Error::new(src, token, String::from(""), 2);
         let back: &str = error.back();
         assert_eq!(back, &src[6..10]);
+
+        let token = Token::Eof(&src[11..11]);
+        assert_eq!(token, Token::Eof(""));
+        let error = Error::new(src, token, String::from(""), 2);
+        let back: &str = error.back();
+        assert_eq!(back, &src[6..11]);
     }
 
     #[test]

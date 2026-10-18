@@ -1,4 +1,5 @@
 use std::mem::discriminant;
+use std::process::exit;
 
 use crate::error::Error;
 use crate::tokenizer::Tokenizer;
@@ -25,6 +26,7 @@ pub struct Parser<'src, 'a> {
 
 impl<'src, 'a> Parser<'src, 'a> {
     pub fn new(source_file: &'src str, code: &'a mut Vec<Code<'src>>) -> Self {
+        let source_file = source_file.trim();
         let mut tokenizer = Tokenizer::new(source_file);
         let token = tokenizer.scan_token();
         return Parser {
@@ -34,7 +36,7 @@ impl<'src, 'a> Parser<'src, 'a> {
             tokenizer,
             code,
             current: token,
-            previous: Token::Eof,
+            previous: Token::Eof(""),
         };
     }
 
@@ -87,14 +89,14 @@ impl<'src, 'a> Parser<'src, 'a> {
 
         loop {
             match self.next() {
-                Token::Semicolon(_) | Token::Eof => break,
+                Token::Semicolon(_) | Token::Eof(_) => break,
                 _ => continue,
             }
         }
     }
 
     pub fn parse(&mut self) -> bool {
-        while self.peek() != Token::Eof {
+        while discriminant(&self.peek()) != discriminant(&Token::Eof("")) {
             self.statement();
         }
 
@@ -187,7 +189,7 @@ impl<'src, 'a> Parser<'src, 'a> {
 
         loop {
             let op = match self.peek() {
-                Token::Eof | Token::RightParen(_) |
+                Token::Eof(_) | Token::RightParen(_) |
                     Token::Semicolon(_) | Token::Equal(_) => break,
                 valid @ (Token::Plus(_) | Token::Minus(_) |
                     Token::Star(_) | Token::Slash(_)) => valid,
@@ -257,8 +259,8 @@ mod tests {
         assert_eq!(parser.next(), Token::Star("*"));
         assert_eq!(parser.peek(), Token::Number("3"));
         assert_eq!(parser.next(), Token::Number("3"));
-        assert_eq!(parser.peek(), Token::Eof);
-        assert_eq!(parser.next(), Token::Eof);
+        assert_eq!(parser.peek(), Token::Eof(""));
+        assert_eq!(parser.next(), Token::Eof(""));
     }
 
     // TODO: fix test
@@ -288,7 +290,7 @@ mod tests {
         assert_eq!(parser.peek(), Token::Plus("+"));
         assert_eq!(parser._match(Token::Plus("anything")), true);
         assert_eq!(parser._match(Token::Identifier("anything")), true);
-        assert_eq!(parser._match(Token::Eof), true);
+        assert_eq!(parser._match(Token::Eof("")), true);
     }
 
     #[test]
@@ -636,13 +638,13 @@ mod tests {
         let mut parser = Parser::new("1 + 2 / / 3 * 4", &mut code);
         parser.expr_bp(0);
         parser.syncronize();
-        assert_eq!(parser.peek(), Token::Eof);
+        assert_eq!(parser.peek(), Token::Eof(""));
 
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 + 2 / / 3 * 4;", &mut code);
         parser.expr_bp(0);
         parser.syncronize();
-        assert_eq!(parser.peek(), Token::Eof);
+        assert_eq!(parser.peek(), Token::Eof(""));
 
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 + 2 / / 3 * 4;\nfoo = bar;", &mut code);
@@ -654,6 +656,6 @@ mod tests {
         let mut parser = Parser::new("1 + 2 / / 3 * 4;\nfoo = bar;", &mut code);
         parser.parse();
         assert_eq!(parser.previous, Token::Semicolon(";"));
-        assert_eq!(parser.peek(), Token::Eof);
+        assert_eq!(parser.peek(), Token::Eof(""));
     }
 }
