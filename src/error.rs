@@ -1,5 +1,9 @@
 use std::fmt::Display;
 
+use crossterm::cursor::{ self, MoveToColumn };
+use crossterm::execute;
+use std::io::stdout;
+
 use crate::token::Token;
 
 enum Direction {
@@ -7,6 +11,7 @@ enum Direction {
     Forth,
 }
 
+#[derive(Debug)]
 pub struct Error<'a> {
     source_file: &'a str,
     token: Token<'a>,
@@ -58,7 +63,25 @@ impl<'a> Error<'a> {
 
 impl<'a> Display for Error<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!();
+        let lexeme = match self.token {
+            Token::Eof => todo!(),
+            Token::Equal(l) | Token::Error(l) | Token::Identifier(l) |
+                Token::LeftParen(l) | Token::Minus(l) | Token::Number(l) |
+                Token::Plus(l) | Token::RightParen(l) | Token::Semicolon(l) |
+                Token::Slash(l) | Token::Star(l) => l
+        };
+        let _ = write!(f, "{}", self.back());
+        let (start_x, _y) = cursor::position()
+            .unwrap_or_else(|_| panic!("failed to get cursor position"));
+        let _ = write!(f, "{lexeme}");
+        let (end_x, _y) = cursor::position()
+            .unwrap_or_else(|_| panic!("failed to get cursor position"));
+        let _ = write!(f, "{}\n", self.forth());
+
+        for _ in 0..start_x { let _ = write!(f, " "); }
+        for _ in start_x..end_x { let _ = write!(f, "^"); }
+
+        return write!(f, " {}", self.message);
     }
 }
 
