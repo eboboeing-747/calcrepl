@@ -270,8 +270,8 @@ mod tests {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("+", &mut code);
         parser.expect(Token::Identifier("anything"), "expect identifier");
-        // assert_eq!(parser.error, Some("expect identifier".to_string()));
-        todo!();
+        assert_eq!(parser.error.unwrap().message,
+            "expect identifier".to_string());
     }
 
     #[test]
@@ -592,8 +592,8 @@ mod tests {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("foo = 1 - bar = 2 / 3", &mut code);
         parser.expr_bp(0);
-        // assert_eq!(parser.error, Some("invalid assignment target".to_string()));
-        todo!();
+        assert_eq!(parser.error.unwrap().message,
+            "illegal assignment".to_string());
     }
 
     // TODO: fix test
@@ -602,8 +602,8 @@ mod tests {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("1 - foo = 2", &mut code);
         parser.expr_bp(0);
-        // assert_eq!(parser.error, Some("invalid assignment target".to_string()));
-        todo!();
+        assert_eq!(parser.error.unwrap().message,
+            "illegal assignment".to_string());
     }
 
     #[test]
@@ -623,8 +623,8 @@ mod tests {
         let mut code: Vec<Code> = Vec::new();
         let mut parser = Parser::new("let name 1;", &mut code);
         parser.let_stmt();
-        // assert_eq!(parser.error.message, "expect '=' after 'let <name>'".to_string());
-        todo!();
+        assert_eq!(parser.error.unwrap().message,
+            "expect '=' after 'let <name>'".to_string());
     }
 
     #[test]

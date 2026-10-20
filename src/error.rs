@@ -14,7 +14,10 @@ enum Direction {
 pub struct Error<'a> {
     source_file: &'a str,
     token: Token<'a>,
+    #[cfg(not(test))]
     message: String,
+    #[cfg(test)]
+    pub message: String,
     line: usize,
 }
 
