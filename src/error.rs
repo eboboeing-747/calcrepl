@@ -1,5 +1,7 @@
+use std::io::stdout;
 use std::fmt::Display;
-use crossterm::cursor;
+use crossterm::{cursor, execute};
+use crossterm::style::{Color, Colors, SetColors, ResetColor};
 
 use crate::token::Token;
 
@@ -68,20 +70,25 @@ impl<'a> Display for Error<'a> {
                 Token::Semicolon(l) | Token::Slash(l) | Token::Star(l) => l,
         };
 
-        let _ = write!(f, " {} | {}", self.line, self.back());
+        let _ = write!(f, "\t{} | {}", self.line, self.back());
         let (start_x, _y) = cursor::position()
             .unwrap_or_else(|_| panic!("failed to get cursor position"));
 
+        let _ = execute!(stdout(), SetColors(Colors::new(Color::Red, Color::Reset)));
         let _ = write!(f, "{lexeme}");
+        let _ = execute!(stdout(), ResetColor);
         let (end_x, _y) = cursor::position()
             .unwrap_or_else(|_| panic!("failed to get cursor position"));
         let _ = write!(f, "{}\n", self.forth());
 
         for _ in 0..start_x { let _ = write!(f, " "); }
+        let _ = execute!(stdout(), SetColors(Colors::new(Color::Red, Color::Reset)));
         for _ in start_x..end_x { let _ = write!(f, "^"); }
         if start_x == end_x { let _ = write!(f, "^"); }
 
-        return write!(f, " {}", self.message);
+        let result = write!(f, " {}", self.message);
+        let _ = execute!(stdout(), ResetColor);
+        return result;
     }
 }
 

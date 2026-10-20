@@ -1,5 +1,4 @@
 use std::mem::discriminant;
-use std::process::exit;
 
 use crate::error::Error;
 use crate::tokenizer::Tokenizer;
@@ -169,6 +168,8 @@ impl<'src, 'a> Parser<'src, 'a> {
 
     fn expr_bp(&mut self, min_bp: u8) {
         let can_assign = min_bp <= BindingPower::Assignment as u8;
+        // TODO: fix: any token will get consumed as part of expression
+        // replace next() with a match_() or a peek()
         let token = self.next();
         let _lhs = match token {
             Token::Number(lexeme) => self.number(lexeme),
@@ -183,7 +184,7 @@ impl<'src, 'a> Parser<'src, 'a> {
                 self.expect(Token::RightParen(""),
                     "unterminated grouping expression");
             }
-            t => self.error(format!(
+            t => self.error_at(self.previous, format!(
                 "expect number, got {:?} instead", t)),
         };
 
