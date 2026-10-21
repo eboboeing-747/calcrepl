@@ -5,6 +5,7 @@ use crate::token::Token;
 pub struct Tokenizer<'a> {
     start: usize,
     current: usize,
+    line: usize,
     source_file: &'a str,
     chars: Peekable<CharIndices<'a>>,
 }
@@ -14,6 +15,7 @@ impl<'a> Tokenizer<'a> {
         return Tokenizer {
             start: 0,
             current: 0,
+            line: 1,
             source_file,
             chars: source_file.char_indices().peekable(),
         };
@@ -43,6 +45,7 @@ impl<'a> Tokenizer<'a> {
                 None => break,
             };
             if c == ' ' || c == '\n' {
+                if c == '\n' { self.line += 1; }
                 self.advance();
                 continue;
             }
@@ -79,12 +82,16 @@ impl<'a> Tokenizer<'a> {
         return &self.source_file[self.start..self.current];
     }
 
-    pub fn scan_token(& mut self) -> Token<'a> {
+    pub fn line(&self) -> usize {
+        return self.line;
+    }
+
+    pub fn scan_token(&mut self) -> Token<'a> {
         self.skip_whitespace();
         self.start = self.current;
         let c = match self.advance() {
             Some(c) => c,
-            None => return Token::Eof,
+            None => return Token::Eof(self.lexeme()),
         };
 
         if c.is_digit(10) {
@@ -119,7 +126,10 @@ mod tests {
         loop {
             let token = tokenizer.scan_token();
             res.push(token);
-            if token == Token::Eof { break; }
+            match token {
+                Token::Eof(_) => break,
+                _ => (),
+            }
         }
         return res;
     }
@@ -127,7 +137,7 @@ mod tests {
     #[test]
     fn empty_string() {
         assert_eq!(
-            vec![Token::Eof],
+            vec![Token::Eof("")],
             vectorize(""),
         );
     }
@@ -135,27 +145,27 @@ mod tests {
     #[test]
     fn whitespace_endline() {
         assert_eq!(
-            vec![Token::Eof],
+            vec![Token::Eof("")],
             vectorize(" "),
         );
 
         assert_eq!(
-            vec![Token::Eof],
+            vec![Token::Eof("")],
             vectorize("         "),
         );
 
         assert_eq!(
-            vec![Token::Eof],
+            vec![Token::Eof("")],
             vectorize("\n"),
         );
 
         assert_eq!(
-            vec![Token::Eof],
+            vec![Token::Eof("")],
             vectorize("     \n"),
         );
 
         assert_eq!(
-            vec![Token::Number("1"), Token::Eof,],
+            vec![Token::Number("1"), Token::Eof(""),],
             vectorize("\n1"),
         );
     }
@@ -165,7 +175,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::Number("1"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("1")
         );
@@ -180,7 +190,7 @@ mod tests {
                 Token::Plus("+"),
                 Token::Number("1"),
                 Token::RightParen(")"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("(1+1)"),
         );
@@ -195,7 +205,7 @@ mod tests {
                 Token::Plus("+"),
                 Token::Number("1"),
                 Token::RightParen(")"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("( 1 + 1 )"),
         );
@@ -210,7 +220,7 @@ mod tests {
                 Token::Plus("+"),
                 Token::Number("1"),
                 Token::RightParen(")"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("(    1     +1    )"),
         );
@@ -221,7 +231,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::Number("123456"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("123456"),
         );
@@ -240,7 +250,7 @@ mod tests {
                 Token::Minus("-"),
                 Token::Number("12"),
                 Token::RightParen(")"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("123456 + 1  / (984 - 12)"),
         );
@@ -251,7 +261,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::Number("1.1"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("1.1"),
         );
@@ -262,7 +272,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::Number("1245.123142"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("1245.123142"),
         );
@@ -278,7 +288,7 @@ mod tests {
                 Token::Number("23423"),
                 Token::RightParen(")"),
                 Token::RightParen(")"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("((.23423))"),
         );
@@ -289,7 +299,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::Error("0."),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("0."),
         );
@@ -300,7 +310,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::Error("9888."),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("9888."),
         );
@@ -311,7 +321,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::Identifier("a"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("a"),
         );
@@ -319,7 +329,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::Identifier("AnyAlphaSequnce"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("AnyAlphaSequnce"),
         );
@@ -327,7 +337,7 @@ mod tests {
         assert_eq!(
             vec![
                 Token::Identifier("_Alpha2345_Numeric123423"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("_Alpha2345_Numeric123423"),
         );
@@ -339,7 +349,7 @@ mod tests {
             vec![
                 Token::Number("1234"),
                 Token::Identifier("a1234"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("1234a1234"),
         );
@@ -350,7 +360,7 @@ mod tests {
                 Token::Identifier("_identifier1"),
                 Token::Minus("-"),
                 Token::Number("4321"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("1234_identifier1-4321"),
         );
@@ -367,7 +377,7 @@ mod tests {
                 Token::Identifier("_foo"),
                 Token::Star("*"),
                 Token::Identifier("Bar_baz_123"),
-                Token::Eof,
+                Token::Eof(""),
             ],
             vectorize("123 + num_1 / _foo * Bar_baz_123"),
         );

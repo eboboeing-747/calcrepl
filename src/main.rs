@@ -2,6 +2,7 @@ use parser::Parser;
 use std::io::{ Write, stdin };
 use vm::{ Code, VM };
 
+mod error;
 mod token;
 mod tokenizer;
 mod parser;
