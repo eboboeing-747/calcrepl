@@ -63,16 +63,16 @@ impl<'src, 'a> Parser<'src, 'a> {
         return self.previous;
     }
 
-    fn peek(&mut self) -> Token<'src> { 
+    fn peek(&self) -> Token<'src> {
         return self.current;
     }
 
     fn expect(&mut self, expected: Token, message: &'static str) -> Token<'src> {
-        let token = self.next();
+        let token = self.peek();
         if discriminant(&token) != discriminant(&expected) {
-            self.error_at(self.previous, message.to_string());
+            self.error(message.to_string());
         }
-        return token;
+        return self.next();
     }
 
     fn _match(&mut self, token: Token) -> bool {
@@ -185,7 +185,8 @@ impl<'src, 'a> Parser<'src, 'a> {
                     "unterminated grouping expression");
             }
             t => self.error_at(self.previous, format!(
-                "expect number, got {:?} instead", t)),
+                "expect a number, identifier, operator, or '(', got {:?} instead",
+                    t)),
         };
 
         loop {
@@ -264,7 +265,6 @@ mod tests {
         assert_eq!(parser.next(), Token::Eof(""));
     }
 
-    // TODO: fix test
     #[test]
     fn expect_1() {
         let mut code: Vec<Code> = Vec::new();
@@ -586,7 +586,6 @@ mod tests {
         ]);
     }
 
-    // TODO: fix test
     #[test]
     fn assignment_5() {
         let mut code: Vec<Code> = Vec::new();
@@ -596,7 +595,6 @@ mod tests {
             "illegal assignment".to_string());
     }
 
-    // TODO: fix test
     #[test]
     fn assignment_invalid() {
         let mut code: Vec<Code> = Vec::new();
@@ -617,7 +615,6 @@ mod tests {
         ]);
     }
 
-    // TODO: fix test
     #[test]
     fn let_stmt_error_1() {
         let mut code: Vec<Code> = Vec::new();

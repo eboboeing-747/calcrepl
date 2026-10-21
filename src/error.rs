@@ -73,25 +73,47 @@ impl<'a> Display for Error<'a> {
                 Token::Semicolon(l) | Token::Slash(l) | Token::Star(l) => l,
         };
 
-        let _ = write!(f, "\t{} | {}", self.line, self.back());
+        let _ = execute!(stdout(),
+            SetColors(Colors::new(Color::Blue, Color::Reset)));
+        let line = self.line.to_string();
+        let _ = write!(f, "{} | ", line);
+        let _ = execute!(stdout(), ResetColor);
+        let _ = write!(f, "{}", self.back());
+
         let (start_x, _y) = cursor::position()
             .unwrap_or_else(|_| panic!("failed to get cursor position"));
-
-        let _ = execute!(stdout(), SetColors(Colors::new(Color::Red, Color::Reset)));
+        let _ = execute!(stdout(),
+            SetColors(Colors::new(Color::Red, Color::Reset)));
         let _ = write!(f, "{lexeme}");
         let _ = execute!(stdout(), ResetColor);
         let (end_x, _y) = cursor::position()
             .unwrap_or_else(|_| panic!("failed to get cursor position"));
+
         let _ = write!(f, "{}\n", self.forth());
 
-        for _ in 0..start_x { let _ = write!(f, " "); }
-        let _ = execute!(stdout(), SetColors(Colors::new(Color::Red, Color::Reset)));
+        let _ = execute!(stdout(),
+            SetColors(Colors::new(Color::Blue, Color::Reset)));
+        for _ in 0..line.len() + 1 { let _ = write!(f, " "); }
+        let _ = write!(f, "| ");
+
+        let mut offset = start_x as usize - line.len() - 3;
+        let mut is_front = false;
+        if self.message.len() < offset {
+            offset -= self.message.len() + 1;
+            is_front = true;
+        }
+        let _ = execute!(stdout(),
+            SetColors(Colors::new(Color::Red, Color::Reset)));
+        for _ in 0..offset { let _ = write!(f, " "); }
+        if is_front { let _ = write!(f, "{} ", self.message); }
+
         for _ in start_x..end_x { let _ = write!(f, "^"); }
         if start_x == end_x { let _ = write!(f, "^"); }
 
-        let result = write!(f, " {}", self.message);
+        if !is_front { let _ = write!(f, " {}", self.message); }
         let _ = execute!(stdout(), ResetColor);
-        return result;
+
+        return std::result::Result::Ok(());
     }
 }
 
